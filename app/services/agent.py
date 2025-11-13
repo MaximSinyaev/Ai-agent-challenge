@@ -1,22 +1,46 @@
 from typing import Dict, List, Optional
 from datetime import datetime
 import uuid
-from app.models.schemas import Agent, AgentConfig, ChatMessage, MessageRole
+from app.models.schemas import Agent, AgentConfig, ChatMessage, MessageRole, ResponseFormat, ResponseFormatType
+from app.services.agent_loader import agent_loader
+from app.database import get_db, AgentRepository
+from app.config import settings
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class AgentService:
     """Сервис для управления AI агентами"""
     
     def __init__(self):
-        # Временное хранилище агентов в памяти
-        # В реальном проекте здесь будет база данных
-        self._agents: Dict[str, Agent] = {}
-        
-        # Создаем агента по умолчанию
-        self._create_default_agent()
+        # Больше не используем хранилище в памяти, переходим на БД
+        pass
     
-    def _create_default_agent(self):
-        """Создает агента по умолчанию"""
+    async def load_predefined_agents(self, db: AsyncSession):
+        """Загружает предустановленных агентов из YAML файла в БД"""
+        try:
+            repository = AgentRepository(db)
+            
+            # Очищаем старых предустановленных агентов
+            await repository.clear_predefined_agents()
+            
+            # Загружаем агентов из YAML
+            predefined_agents_dict = agent_loader.load_agents()
+            predefined_agents = list(predefined_agents_dict.values())
+            
+            # Сохраняем в БД как предустановленных
+            if predefined_agents:
+                await repository.bulk_create_agents(predefined_agents, is_predefined=True)
+                print(f"Загружено {len(predefined_agents)} предустановленных агентов в БД")
+            else:
+                await self._create_fallback_agent(repository)
+                
+        except Exception as e:
+            print(f"Ошибка загрузки предустановленных агентов: {e}")
+            repository = AgentRepository(db)
+            await self._create_fallback_agent(repository)
+    
+    async def _create_fallback_agent(self, repository: AgentRepository):
+        """Создает базового агента если не удалось загрузить из YAML"""
         default_config = AgentConfig(
             name="Default Assistant", 
             description="Default AI assistant agent.",
@@ -24,10 +48,11 @@ class AgentService:
             temperature=0.7,
             max_tokens=1000
         )
-        self.create_agent(default_config, agent_id="default")
+        agent = await self.create_agent_from_config(repository, default_config, agent_id="default")
+        print("Создан fallback агент")
     
-    def create_agent(self, config: AgentConfig, agent_id: str = None) -> Agent:
-        """Создает нового агента"""
+    async def create_agent_from_config(self, repository: AgentRepository, config: AgentConfig, agent_id: str = None) -> Agent:
+        """Создает нового агента из конфигурации"""
         agent_id = agent_id or str(uuid.uuid4())
         
         agent = Agent(
@@ -35,29 +60,53 @@ class AgentService:
             name=config.name,
             description=config.description,
             system_prompt=config.system_prompt,
-            model=config.model or "kwaipilot/kat-coder-pro:free",
+            model=config.model or settings.ASSISTANT.DEFAULT_MODEL,
             temperature=config.temperature,
             max_tokens=config.max_tokens,
+            response_format=config.response_format,
             created_at=datetime.now().isoformat()
         )
         
-        self._agents[agent_id] = agent
-        return agent
+        return await repository.create_agent(agent)
     
-    def get_agent(self, agent_id: str) -> Optional[Agent]:
+    async def get_agent(self, db: AsyncSession, agent_id: str) -> Optional[Agent]:
         """Получает агента по ID"""
-        return self._agents.get(agent_id)
+        repository = AgentRepository(db)
+        return await repository.get_agent_by_id(agent_id)
     
-    def list_agents(self) -> List[Agent]:
+    async def list_agents(self, db: AsyncSession) -> List[Agent]:
         """Возвращает список всех агентов"""
-        return list(self._agents.values())
+        repository = AgentRepository(db)
+        return await repository.get_all_agents()
     
-    def delete_agent(self, agent_id: str) -> bool:
+    async def create_agent(self, db: AsyncSession, config: AgentConfig, agent_id: str = None) -> Agent:
+        """Создает нового агента"""
+        repository = AgentRepository(db)
+        return await self.create_agent_from_config(repository, config, agent_id)
+    
+    async def update_agent(self, db: AsyncSession, agent_id: str, config: AgentConfig) -> Optional[Agent]:
+        """Обновляет агента"""
+        repository = AgentRepository(db)
+        
+        # Создаем объект Agent из конфигурации
+        agent = Agent(
+            id=agent_id,
+            name=config.name,
+            description=config.description,
+            system_prompt=config.system_prompt,
+            model=config.model or settings.ASSISTANT.DEFAULT_MODEL,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            response_format=config.response_format,
+            created_at=datetime.now().isoformat()
+        )
+        
+        return await repository.update_agent(agent_id, agent)
+    
+    async def delete_agent(self, db: AsyncSession, agent_id: str) -> bool:
         """Удаляет агента"""
-        if agent_id in self._agents and agent_id != "default":
-            del self._agents[agent_id]
-            return True
-        return False
+        repository = AgentRepository(db)
+        return await repository.delete_agent(agent_id)
     
     def prepare_messages_for_agent(
         self, 
@@ -68,11 +117,14 @@ class AgentService:
         """Подготавливает сообщения для отправки агенту"""
         messages = []
         
+        # Готовим системный промпт с учетом формата ответа
+        system_prompt = self._build_system_prompt(agent)
+        
         # Добавляем системное сообщение
-        if agent.system_prompt:
+        if system_prompt:
             messages.append(ChatMessage(
                 role=MessageRole.SYSTEM,
-                content=agent.system_prompt
+                content=system_prompt
             ))
         
         # Добавляем историю разговора (если есть)
@@ -86,6 +138,42 @@ class AgentService:
         ))
         
         return messages
+    
+    def _build_system_prompt(self, agent: Agent) -> str:
+        """Строит системный промпт с учетом формата ответа"""
+        prompt = agent.system_prompt or ""
+        
+        if agent.response_format and agent.response_format.type != ResponseFormatType.PLAIN_TEXT:
+            format_instruction = self._get_format_instruction(agent.response_format)
+            prompt += f"\n\n{format_instruction}"
+        
+        return prompt
+    
+    def _get_format_instruction(self, response_format: ResponseFormat) -> str:
+        """Генерирует инструкции по формату ответа"""
+        if response_format.type == ResponseFormatType.JSON:
+            instruction = "ВАЖНО: Отвечай ТОЛЬКО в формате JSON. Не добавляй никаких дополнительных объяснений вне JSON структуры."
+            
+            if response_format.json_schema:
+                instruction += f"\n\nТребуемая JSON схема:\n```json\n{response_format.json_schema}\n```"
+            
+            if response_format.examples:
+                instruction += "\n\nПримеры ответов:"
+                for i, example in enumerate(response_format.examples, 1):
+                    instruction += f"\n\nПример {i}:\n```json\n{example}\n```"
+            
+            if response_format.description:
+                instruction += f"\n\nОписание формата: {response_format.description}"
+                
+            return instruction
+        
+        elif response_format.type == ResponseFormatType.MARKDOWN:
+            return "Отвечай в формате Markdown с правильным форматированием заголовков, списков и кода."
+        
+        elif response_format.type == ResponseFormatType.CODE_BLOCK:
+            return "Отвечай в формате блока кода с указанием языка программирования."
+        
+        return ""
 
 
 # Глобальный экземпляр сервиса

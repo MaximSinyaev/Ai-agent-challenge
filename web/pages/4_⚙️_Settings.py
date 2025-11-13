@@ -1,15 +1,17 @@
 import streamlit as st
 import json
 from typing import Dict, Any
+import sys
+from pathlib import Path
+
+# Добавляем путь к родительской директории для импорта модулей
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+# Page configuration
+st.set_page_config(page_title="⚙️ Настройки", page_icon="⚙️", layout="wide")
 
 def render_settings_page():
     """Application settings page"""
-    
-    st.set_page_config(
-        page_title="Settings - AI Agent Interface", 
-        page_icon="⚙️",
-        layout="wide"
-    )
     
     st.title("Settings")
     st.markdown("---")
@@ -48,7 +50,7 @@ Backend URL: {config.backend_url}
         with col2:
             st.subheader("🔍 Проверка подключения")
             
-            if st.button("🔄 Проверить подключение", use_container_width=True):
+            if st.button("🔄 Проверить подключение", width="content"):
                 with st.spinner("Проверяем подключение..."):
                     try:
                         health = api_client.health_check()
@@ -214,14 +216,14 @@ Backend URL: {config.backend_url}
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("🗑️ Очистить историю чата", type="secondary", use_container_width=True):
+            if st.button("🗑️ Очистить историю чата", type="secondary", width="content"):
                 if 'messages' in st.session_state:
                     st.session_state.messages = []
                 st.success("✅ История чата очищена")
                 st.rerun()
         
         with col2:
-            if st.button("🔄 Очистить кеш", type="secondary", use_container_width=True):
+            if st.button("🔄 Очистить кеш", type="secondary", width="content"):
                 st.cache_data.clear()
                 st.success("✅ Кеш очищен")
                 st.rerun()
@@ -243,8 +245,8 @@ Backend URL: {config.backend_url}
             data=json.dumps(export_data, indent=2, ensure_ascii=False),
             file_name=f"session_export_{int(st.session_state.get('session_start', 0))}.json",
             mime="application/json",
-            use_container_width=True
+            width="content"
         )
 
-if __name__ == "__main__":
-    render_settings_page()
+# Запуск страницы
+render_settings_page()

@@ -1,14 +1,36 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.config import settings
 from app.api import chat, agents, models
+from app.database import init_db, close_db, get_db
+from app.services.agent import agent_service
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Инициализация приложения...")
+    await init_db()
+    
+    # Загружаем предустановленных агентов
+    async for db in get_db():
+        await agent_service.load_predefined_agents(db)
+        break
+    
+    yield
+    
+    # Shutdown
+    print("Завершение приложения...")
+    await close_db()
+
 
 # Создаем приложение FastAPI
 app = FastAPI(
     title="AI Agent Backend",
     description="Backend для AI агента с поддержкой OpenRouter",
     version="1.0.0",
-    debug=settings.DEBUG
+    debug=settings.DEBUG,
+    lifespan=lifespan
 )
 
 # Настройка CORS
@@ -20,10 +42,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры
-app.include_router(chat.router, tags=["chat"])
-app.include_router(agents.router, tags=["agents"])
-app.include_router(models.router, tags=["models"])
+# Подключаем роутеры с версионированием API
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
+app.include_router(models.router, prefix="/api/v1", tags=["models"])
 
 
 @app.get("/")

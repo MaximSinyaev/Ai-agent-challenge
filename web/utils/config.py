@@ -7,7 +7,7 @@ class WebConfig:
     
     def __init__(self):
         # Backend URL
-        self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000/")
         
         # Настройки интерфейса
         self.page_title = "AI Agent Interface"

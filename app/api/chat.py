@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.schemas import (
     ChatRequest, 
     ChatResponse, 
@@ -8,19 +9,21 @@ from app.models.schemas import (
 )
 from app.services.openrouter import openrouter_service
 from app.services.agent import agent_service
+from app.services.response_format import response_format_service
+from app.database import get_db
 
 router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
     Отправляет сообщение AI агенту
     """
     try:
         # Получаем агента
         agent_id = request.agent_id or "default"
-        agent = agent_service.get_agent(agent_id)
+        agent = await agent_service.get_agent(db, agent_id)
         
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
@@ -44,11 +47,20 @@ async def chat(request: ChatRequest):
             max_tokens=max_tokens
         )
         
+        # Парсим ответ согласно формату агента
+        parsed_data, format_valid = response_format_service.parse_response(
+            result["message"], 
+            agent.response_format
+        )
+        
         return ChatResponse(
             message=result["message"],
             model=result["model"],
             agent_id=agent_id,
-            usage=result.get("usage")
+            usage=result.get("usage"),
+            parsed_data=parsed_data if agent.response_format else None,
+            format_valid=format_valid if agent.response_format else None,
+            response_format=agent.response_format
         )
         
     except Exception as e:

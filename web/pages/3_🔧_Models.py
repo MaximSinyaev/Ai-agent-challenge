@@ -4,15 +4,17 @@ import plotly.express as px
 import plotly.graph_objects as go
 from typing import List, Dict
 import time
+import sys
+from pathlib import Path
+
+# Добавляем путь к родительской директории для импорта модулей
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+# Page configuration
+st.set_page_config(page_title="🔧 Модели", page_icon="🔧", layout="wide")
 
 def render_models_page():
     """Available models page"""
-    
-    st.set_page_config(
-        page_title="Models - AI Agent Interface",
-        page_icon="🔧",
-        layout="wide"
-    )
     
     st.title("Available Models")
     st.markdown("---")
@@ -127,7 +129,7 @@ def render_models_page():
                                 names=list(provider_counts.keys()),
                                 title="Распределение моделей по провайдерам"
                             )
-                            st.plotly_chart(fig_providers, use_container_width=True)
+                            st.plotly_chart(fig_providers, width="content")
                     
                     # График размеров контекста
                     with col2:
@@ -137,7 +139,7 @@ def render_models_page():
                                 title="Распределение размеров контекста",
                                 labels={"x": "Размер контекста (токены)", "y": "Количество моделей"}
                             )
-                            st.plotly_chart(fig_context, use_container_width=True)
+                            st.plotly_chart(fig_context, width="content")
             
             else:
                 st.warning("⚠️ Модели не найдены")
@@ -146,5 +148,5 @@ def render_models_page():
             st.error(f"❌ Ошибка загрузки моделей: {e}")
             st.info("💡 Убедитесь, что backend сервер запущен и доступен")
 
-if __name__ == "__main__":
-    render_models_page()
+# Запуск страницы
+render_models_page()

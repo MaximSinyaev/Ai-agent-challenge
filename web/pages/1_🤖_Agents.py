@@ -1,76 +1,124 @@
 import streamlit as st
-from typing import Dict, Any, Optional
+from typing import List, Dict, Any, Optional
 import json
 import time
-from web.models.schemas import ResponseFormatType, ResponseFormat
+import sys
+from pathlib import Path
 
-def render_agent_manager():
-    """Рендер интерфейса управления агентами"""
-    
-    st.header("🔧 Управление агентами")
-    
-    # Вкладки для разных функций
-    tab1, tab2, tab3 = st.tabs(["📋 Список агентов", "➕ Создать агента", "🗑️ Удалить агента"])
-    
-    # Вкладка со списком агентов
-    with tab1:
-        render_agents_list()
-    
-    # Вкладка создания агента
-    with tab2:
-        render_create_agent()
-    
-    # Вкладка удаления агента
-    with tab3:
-        render_delete_agent()
+# Добавляем путь к родительской директории для импорта модулей
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-def render_agents_list():
-    """Рендер списка агентов"""
-    st.subheader("📋 Текущие агенты")
+try:
+    from web.models.schemas import ResponseFormatType, ResponseFormat
+except ImportError:
+    # Если импорт не удался, создаем enum-подобные константы
+    class ResponseFormatType:
+        PLAIN_TEXT = "plain_text"
+        JSON = "json"
+        MARKDOWN = "markdown"
+        CODE_BLOCK = "code_block"
+
+# Инициализация состояния сессии для страницы
+def init_page_session():
+    """Инициализация состояния сессии для страницы агентов"""
+    if 'api_client' not in st.session_state:
+        try:
+            from web.utils.api_client import APIClient
+            from web.utils.config import WebConfig
+            config = WebConfig()
+            st.session_state.api_client = APIClient(config.backend_url, api_version="v1")
+        except ImportError as e:
+            st.error(f"Ошибка импорта: {e}")
+            st.stop()
+    
+    if 'current_agent' not in st.session_state:
+        st.session_state.current_agent = "default"
+
+# Основная функция страницы
+st.set_page_config(page_title="🤖 Агенты", page_icon="🤖", layout="wide")
+
+init_page_session()
+
+st.header("🤖 Управление агентами")
+
+# Вкладки для разных функций
+tab1, tab2, tab3, tab4 = st.tabs(["📋 Список агентов", "➕ Создать агента", "🗑️ Удалить агента", "📦 Импорт/Экспорт"])
+
+# Вкладка со списком агентов
+with tab1:
+    st.subheader("📋 Все агенты в системе")
     
     try:
         agents = st.session_state.api_client.get_agents()
         
         if agents:
-            for agent in agents:
-                with st.expander(f"🤖 {agent['name']} ({agent['id']})", expanded=False):
-                    col1, col2 = st.columns(2)
+            for i, agent in enumerate(agents):
+                with st.expander(f"🤖 {agent['name']} ({agent['id']})", expanded=(i == 0)):
+                    col1, col2 = st.columns([2, 1])
                     
                     with col1:
                         st.write(f"**ID:** {agent['id']}")
                         st.write(f"**Имя:** {agent['name']}")
                         st.write(f"**Описание:** {agent.get('description', 'Нет описания')}")
+                        
+                        if agent.get('system_prompt'):
+                            st.write("**Системный промпт:**")
+                            st.code(agent['system_prompt'], language="text")
                     
                     with col2:
                         st.write(f"**Модель:** {agent.get('model', 'По умолчанию')}")
                         st.write(f"**Температура:** {agent.get('temperature', 'По умолчанию')}")
                         st.write(f"**Макс. токены:** {agent.get('max_tokens', 'По умолчанию')}")
-                    
-                    # Формат ответа
-                    if agent.get('response_format'):
-                        rf = agent['response_format']
-                        st.write(f"**Формат ответа:** {rf.get('type', 'plain_text')}")
-                        if rf.get('description'):
-                            st.write(f"**Описание формата:** {rf['description']}")
-                    
-                    # Системный промпт
-                    if agent.get('system_prompt'):
-                        st.write("**Системный промпт:**")
-                        st.code(agent['system_prompt'], language="text")
-                    
-                    # Кнопка для выбора агента
-                    if st.button(f"🎯 Выбрать агента", key=f"select_{agent['id']}"):
-                        st.session_state.current_agent = agent['id']
-                        st.success(f"✅ Выбран агент: {agent['name']}")
-                        st.rerun()
+                        
+                        # Формат ответа
+                        if agent.get('response_format'):
+                            rf = agent['response_format']
+                            st.write(f"**Формат:** {rf.get('type', 'plain_text')}")
+                            if rf.get('description'):
+                                st.write(f"**Описание формата:** {rf['description']}")
+                        
+                        # Кнопка выбора агента
+                        if st.button(f"🎯 Выбрать", key=f"select_main_{agent['id']}"):
+                            st.session_state.current_agent = agent['id']
+                            st.success(f"✅ Выбран агент: {agent['name']}")
+                            st.rerun()
+                            
+            # Статистика агентов
+            st.divider()
+            
+            col1, col2, col3 = st.columns(3)
+            
+            total_agents = len(agents)
+            custom_agents = len([a for a in agents if a['id'] != 'default'])
+            default_agents = total_agents - custom_agents
+            
+            with col1:
+                st.metric("Всего агентов", total_agents)
+            with col2:
+                st.metric("Пользовательских", custom_agents)
+            with col3:
+                st.metric("По умолчанию", default_agents)
+                
         else:
             st.info("📭 Агенты не найдены")
+            st.markdown("""
+            ### � Начните с создания агента
+            1. Перейдите на вкладку "➕ Создать агента"
+            2. Заполните форму создания
+            3. Протестируйте агента в чате
+            """)
             
     except Exception as e:
         st.error(f"❌ Ошибка загрузки агентов: {e}")
+        st.markdown("### 🔧 Возможные решения")
+        st.markdown("""
+        - Убедитесь, что backend сервер запущен на порту 8000
+        - Проверьте соединение с сервером
+        - Попробуйте обновить страницу
+        """)
 
-def render_create_agent():
-    """Рендер формы создания агента"""
+# Вкладка создания агента
+with tab2:
     st.subheader("➕ Создание нового агента")
     
     with st.form("create_agent_form"):
@@ -129,7 +177,7 @@ def render_create_agent():
         
         response_format_type = st.selectbox(
             "Тип формата:",
-            options=[t.value for t in ResponseFormatType],
+            options=["plain_text", "json", "markdown", "code_block"],
             format_func=lambda x: {
                 "plain_text": "🔤 Обычный текст",
                 "json": "📋 JSON структура", 
@@ -143,7 +191,7 @@ def render_create_agent():
         response_format_schema = None
         response_format_examples = None
         
-        if response_format_type == ResponseFormatType.JSON.value:
+        if response_format_type == "json":
             st.markdown("#### JSON конфигурация")
             
             response_format_description = st.text_input(
@@ -176,7 +224,7 @@ def render_create_agent():
         
         # Кнопка отправки
         submit_button = st.form_submit_button(
-            "🚀 Создать агента",
+            "� Создать агента",
             width="content",
             type="primary"
         )
@@ -198,7 +246,7 @@ def render_create_agent():
                     }
                     
                     # Добавляем формат ответа если не plain_text
-                    if response_format_type != ResponseFormatType.PLAIN_TEXT.value:
+                    if response_format_type != "plain_text":
                         response_format_config = {
                             "type": response_format_type
                         }
@@ -216,7 +264,7 @@ def render_create_agent():
                     
                     # Отправляем запрос
                     with st.spinner("🔄 Создание агента..."):
-                        response = st.session_state.api_client.create_agent(config)
+                        response = st.session_state.api_client.create_agent({"config": config})
                     
                     st.success(f"✅ Агент '{name}' успешно создан!")
                     st.json(response)
@@ -227,8 +275,8 @@ def render_create_agent():
                 except Exception as e:
                     st.error(f"❌ Ошибка создания агента: {e}")
 
-def render_delete_agent():
-    """Рендер формы удаления агента"""
+# Вкладка удаления агента
+with tab3:
     st.subheader("🗑️ Удаление агента")
     
     st.warning("⚠️ **Внимание!** Удаление агента необратимо.")
@@ -301,15 +349,15 @@ def render_delete_agent():
     except Exception as e:
         st.error(f"❌ Ошибка загрузки агентов: {e}")
 
-def render_agent_import_export():
-    """Рендер функций импорта/экспорта агентов"""
+# Вкладка импорта/экспорта
+with tab4:
     st.subheader("📦 Импорт/Экспорт агентов")
     
     col1, col2 = st.columns(2)
     
     # Экспорт
     with col1:
-        st.markdown("### 📤 Экспорт")
+        st.markdown("### � Экспорт")
         try:
             agents = st.session_state.api_client.get_agents()
             if agents:
@@ -330,7 +378,7 @@ def render_agent_import_export():
     # Импорт
     with col2:
         st.markdown("### 📥 Импорт")
-        st.info("🚧 Функция импорта будет добавлена в следующих версиях")
+        st.info("� Функция импорта будет добавлена в следующих версиях")
         
         # Заглушка для будущего функционала
         uploaded_file = st.file_uploader(
@@ -339,3 +387,5 @@ def render_agent_import_export():
             disabled=True,
             help="Функция временно недоступна"
         )
+
+# Основная логика страницы выполняется на уровне модуля

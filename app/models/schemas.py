@@ -10,6 +10,22 @@ class MessageRole(str, Enum):
     SYSTEM = "system"
 
 
+class ResponseFormatType(str, Enum):
+    """Типы форматов ответов"""
+    PLAIN_TEXT = "plain_text"
+    JSON = "json"
+    MARKDOWN = "markdown"
+    CODE_BLOCK = "code_block"
+
+
+class ResponseFormat(BaseModel):
+    """Конфигурация формата ответа"""
+    type: ResponseFormatType = ResponseFormatType.PLAIN_TEXT
+    json_schema: Optional[Dict[str, Any]] = None
+    examples: Optional[List[str]] = None
+    description: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     """Модель сообщения в чате"""
     role: MessageRole
@@ -32,6 +48,9 @@ class ChatResponse(BaseModel):
     model: str
     agent_id: Optional[str] = None
     usage: Optional[Dict[str, Any]] = None
+    parsed_data: Optional[Any] = None
+    format_valid: Optional[bool] = None
+    response_format: Optional[ResponseFormat] = None
 
 
 class AgentConfig(BaseModel):
@@ -42,6 +61,7 @@ class AgentConfig(BaseModel):
     model: Optional[str] = None
     temperature: float = 0.7
     max_tokens: int = 1000
+    response_format: Optional[ResponseFormat] = None
 
 
 class Agent(BaseModel):
@@ -53,6 +73,7 @@ class Agent(BaseModel):
     model: str
     temperature: float = 0.7
     max_tokens: int = 1000
+    response_format: Optional[ResponseFormat] = None
     created_at: str
 
 
