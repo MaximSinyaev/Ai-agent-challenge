@@ -8,7 +8,7 @@ class APIClient:
     def __init__(self, base_url: str = "http://localhost:8000", api_version: str = "v1"):
         self.base_url = base_url.rstrip("/")
         self.api_version = api_version
-        self.timeout = 30.0
+        self.timeout = 120  # секунд
     
     @property
     def api_base_url(self) -> str:

@@ -224,16 +224,30 @@ def render_chat_interface():
                 if message.get("metadata"):
                     metadata = message["metadata"]
                     with st.expander("ℹ️ Message Information", expanded=False):
-                        if metadata.get("model"):
-                            st.write(f"**Model:** {metadata['model']}")
+                        # Показываем базовую информацию
                         if metadata.get("agent_id"):
                             st.write(f"**Agent ID:** {metadata['agent_id']}")
-                        if metadata.get("temperature"):
+                        if metadata.get("model"):
+                            st.write(f"**Model:** {metadata['model']}")
+                        if metadata.get("temperature") is not None:
                             st.write(f"**Temperature:** {metadata['temperature']}")
+                        if metadata.get("max_tokens"):
+                            st.write(f"**Max tokens:** {metadata['max_tokens']}")
                         if metadata.get("tokens_used"):
                             st.write(f"**Tokens used:** {metadata['tokens_used']}")
-                        if metadata.get("format_valid"):
-                            st.write(f"**Format valid:** {'✅' if metadata['format_valid'] else '❌'}")
+                        
+                        # Показываем статус валидации формата если есть
+                        if metadata.get("format_valid") is not None:
+                            status_icon = "✅" if metadata["format_valid"] else "❌"
+                            st.write(f"**Format valid:** {status_icon}")
+                        
+                        # Показываем информацию об ошибке если есть
+                        if metadata.get("error"):
+                            st.error("⚠️ Response contains error")
+                        
+                        # Показываем timestamp если есть
+                        if metadata.get("timestamp"):
+                            st.write(f"**Timestamp:** {metadata['timestamp']}")
                         
                         # Показываем сырые данные если есть структурированные
                         if "parsed_data" in message and message["parsed_data"]:
@@ -268,7 +282,8 @@ def render_chat_interface():
                         request_data["model"] = st.session_state.selected_model
                     
                     # Send request to API
-                    response = st.session_state.api_client.send_chat_message(request_data)
+                    print("Sending chat request:", request_data)
+                    response = st.session_state.api_client.send_chat_message(request_data=request_data)
                     
                     # Display response
                     response_content = response.get("message", response.get("response", "No response received"))
@@ -302,11 +317,47 @@ def render_chat_interface():
                     # Show success/warning based on format validity
                     if response.get("format_valid") is False:
                         st.warning("⚠️ Agent response does not match expected format")
+                    
+                    # Show immediate metadata info
+                    with st.expander("ℹ️ Response Info", expanded=False):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if response.get("model"):
+                                st.write(f"**Model:** {response['model']}")
+                            if response.get("agent_id"):
+                                st.write(f"**Agent:** {response['agent_id']}")
+                        with col2:
+                            if response.get("temperature") is not None:
+                                st.write(f"**Temperature:** {response['temperature']}")
+                            tokens = response.get("usage", {}).get("total_tokens") if response.get("usage") else response.get("tokens_used")
+                            if tokens:
+                                st.write(f"**Tokens:** {tokens}")
+                        with col3:
+                            if response.get("format_valid") is not None:
+                                status = "✅ Valid" if response["format_valid"] else "❌ Invalid"
+                                st.write(f"**Format:** {status}")
+                    
+                    # Force rerun to display metadata immediately
+                    st.rerun()
                         
             except Exception as e:
                 error_message = f"❌ Error getting response: {e}"
                 message_placeholder.error(error_message)
-                st.session_state.messages.append({"role": "assistant", "content": error_message})
+                
+                # Store error message with basic metadata
+                error_assistant_message = {
+                    "role": "assistant",
+                    "content": error_message,
+                    "metadata": {
+                        "agent_id": st.session_state.current_agent,
+                        "temperature": st.session_state.temperature,
+                        "max_tokens": st.session_state.max_tokens,
+                        "error": True,
+                        "timestamp": None
+                    }
+                }
+                st.session_state.messages.append(error_assistant_message)
+                st.rerun()
 
 # Initialize session state
 init_session_state()

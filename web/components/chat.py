@@ -3,35 +3,35 @@ from typing import List, Dict, Any
 import time
 import json
 
-def render_raw_response_expander(raw_content: str, metadata: Dict[str, Any] = None):
-    """Universal function to display raw model response in an expander"""
-    with st.expander("🔍 Raw Model Response", expanded=False):
-        st.markdown("**Original Response:**")
-        st.code(raw_content, language="text")
+# def render_raw_response_expander(raw_content: str, metadata: Dict[str, Any] = None):
+#     """Universal function to display raw model response in an expander"""
+#     with st.expander("🔍 Raw Model Response", expanded=False):
+#         st.markdown("**Original Response:**")
+#         st.code(raw_content, language="text")
         
-        if metadata:
-            st.markdown("**Response Metadata:**")
-            col1, col2, col3 = st.columns(3)
+#         if metadata:
+#             st.markdown("**Response Metadata:**")
+#             col1, col2, col3 = st.columns(3)
             
-            with col1:
-                if "model" in metadata:
-                    st.metric("Model", metadata["model"])
+#             with col1:
+#                 if "model" in metadata:
+#                     st.metric("Model", metadata["model"])
             
-            with col2:
-                if "usage" in metadata and metadata["usage"]:
-                    total_tokens = metadata["usage"].get("total_tokens", 0)
-                    st.metric("Tokens Used", total_tokens)
+#             with col2:
+#                 if "usage" in metadata and metadata["usage"]:
+#                     total_tokens = metadata["usage"].get("total_tokens", 0)
+#                     st.metric("Tokens Used", total_tokens)
             
-            with col3:
-                if "finish_reason" in metadata:
-                    st.metric("Finish Reason", metadata["finish_reason"])
+#             with col3:
+#                 if "finish_reason" in metadata:
+#                     st.metric("Finish Reason", metadata["finish_reason"])
             
-            # Additional metadata in JSON format
-            if len(metadata) > 3:
-                st.markdown("**Full Metadata:**")
-                st.json(metadata)
+#             # Additional metadata in JSON format
+#             if len(metadata) > 3:
+#                 st.markdown("**Full Metadata:**")
+#                 st.json(metadata)
 
-def render_structured_response(data: Any, response_format: dict = None, agent_id: str = None, raw_content: str = None, metadata: Dict[str, Any] = None):
+def render_structured_response(data: Any, response_format: dict = None, metadata: Dict[str, Any] = None):
     """Rendering structured response depending on its type"""
     # If response format is not JSON or not specified, show as is
     if not response_format or response_format.get('type') != 'json':
@@ -40,32 +40,24 @@ def render_structured_response(data: Any, response_format: dict = None, agent_id
         else:
             st.write(data)
         # Show raw response for non-JSON responses too
-        if raw_content:
-            render_raw_response_expander(raw_content, metadata)
         return
     
     if isinstance(data, dict):
         # If this is JSON object, show it nicely for special agents
         if "problem_analysis" in data and "solution_steps" in data:
-            render_math_response(data, raw_content, metadata)
+            render_math_response(data, metadata)
         elif "task_understanding" in data and "code" in data:
-            render_code_response(data, raw_content, metadata)
+            render_code_response(data, metadata)
         elif "data_summary" in data and "recommendations" in data:
-            render_analysis_response(data, raw_content, metadata)
+            render_analysis_response(data, metadata)
         elif "project_breakdown" in data and "tasks" in data:
-            render_planning_response(data, raw_content, metadata)
+            render_planning_response(data, metadata)
         else:
             # General JSON rendering for unknown structures
             st.json(data)
-            # Show raw response for unknown JSON structures
-            if raw_content:
-                render_raw_response_expander(raw_content, metadata)
     else:
         # If this is not dict, show as is
         st.write(data)
-        # Show raw response for non-dict data
-        if raw_content:
-            render_raw_response_expander(raw_content, metadata)
 
 def render_math_response(data: dict, raw_content: str = None, metadata: Dict[str, Any] = None):
     """Rendering mathematical assistant response"""
@@ -104,9 +96,6 @@ def render_math_response(data: dict, raw_content: str = None, metadata: Dict[str
         st.progress(confidence)
         st.write(f"Confidence: {confidence:.0%}")
     
-    # Show raw response if provided
-    if raw_content:
-        render_raw_response_expander(raw_content, metadata)
 
 def render_code_response(data: dict, raw_content: str = None, metadata: Dict[str, Any] = None):
     """Rendering programming assistant response"""
@@ -163,9 +152,6 @@ def render_code_response(data: dict, raw_content: str = None, metadata: Dict[str
         for improvement in data["improvements"]:
             st.write(f"• {improvement}")
     
-    # Show raw response if provided
-    if raw_content:
-        render_raw_response_expander(raw_content, metadata)
 
 def render_analysis_response(data: dict, raw_content: str = None, metadata: Dict[str, Any] = None):
     """Rendering analytical assistant response"""
@@ -217,9 +203,6 @@ def render_analysis_response(data: dict, raw_content: str = None, metadata: Dict
         for limitation in data["limitations"]:
             st.warning(f"• {limitation}")
     
-    # Show raw response if provided
-    if raw_content:
-        render_raw_response_expander(raw_content, metadata)
 
 def render_planning_response(data: dict, raw_content: str = None, metadata: Dict[str, Any] = None):
     """Rendering task planner response"""
@@ -275,185 +258,3 @@ def render_planning_response(data: dict, raw_content: str = None, metadata: Dict
         for risk in data["risks"]:
             st.warning(f"**Risk:** {risk.get('risk', '')}")
             st.info(f"**Mitigation:** {risk.get('mitigation', '')}")
-    
-    # Show raw response if provided
-    if raw_content:
-        render_raw_response_expander(raw_content, metadata)
-
-def render_chat_interface():
-    """Render chat interface using Streamlit's built-in chat components"""
-    
-    st.header("Chat with AI Agent")
-    
-    # Display chat messages from history
-    for message in st.session_state.messages:
-        if message["role"] == "user":
-            with st.chat_message("user"):
-                st.write(message["content"])
-        else:
-            with st.chat_message("assistant"):
-                # Show structured data if available
-                if "parsed_data" in message and message["parsed_data"] and message.get("format_valid"):
-                    response_format = None
-                    if "raw_response" in message and message["raw_response"].get("response_format"):
-                        response_format = message["raw_response"]["response_format"]
-                    agent_id = message.get("metadata", {}).get("agent_id")
-                    raw_content = message["content"]
-                    metadata = message.get("metadata", {})
-                    render_structured_response(message["parsed_data"], response_format, agent_id, raw_content, metadata)
-                else:
-                    st.write(message["content"])
-                
-                # Show metadata and raw response
-                if "raw_response" in message or "metadata" in message:
-                    with st.expander("🔍 Response Details", expanded=False):
-                        # Main metrics
-                        if "metadata" in message:
-                            metadata = message["metadata"]
-                            col1, col2, col3, col4 = st.columns(4)
-                            
-                            with col1:
-                                st.metric("Model", metadata.get("model", "N/A"))
-                            
-                            with col2:
-                                if "usage" in metadata and metadata["usage"]:
-                                    total_tokens = metadata["usage"].get("total_tokens", 0)
-                                    st.metric("Tokens", total_tokens)
-                                else:
-                                    st.metric("Tokens", "N/A")
-                            
-                            with col3:
-                                st.metric("Agent", metadata.get("agent_id", "default"))
-                                
-                            with col4:
-                                if message.get("format_valid") is not None:
-                                    status = "✅ Valid" if message["format_valid"] else "❌ Invalid"
-                                    st.metric("Format", status)
-                        
-                        # Tabs for different data types
-                        if "raw_response" in message:
-                            tab1, tab2, tab3 = st.tabs(["📄 Raw Response", "📋 Structured Data", "⚙️ Full API Response"])
-                            
-                            with tab1:
-                                st.markdown("**Original response text:**")
-                                st.code(message["content"], language="text")
-                            
-                            with tab2:
-                                if message.get("parsed_data"):
-                                    st.markdown("**Parsed data:**")
-                                    st.json(message["parsed_data"])
-                                else:
-                                    st.info("No structured data")
-                            
-                            with tab3:
-                                st.markdown("**Full API response:**")
-                                st.json(message["raw_response"])
-    
-    # Chat input
-    if prompt := st.chat_input("Type your message here..."):
-        # Add user message to session state
-        st.session_state.messages.append({
-            "role": "user", 
-            "content": prompt,
-            "timestamp": time.time()
-        })
-        
-        # Display user message
-        with st.chat_message("user"):
-            st.write(prompt)
-        
-        # Generate and display assistant response
-        with st.chat_message("assistant"):
-            with st.spinner("Generating response..."):
-                try:
-                    # Send request to API
-                    response = st.session_state.api_client.send_chat_message(
-                        message=prompt,
-                        agent_id=st.session_state.current_agent,
-                        temperature=st.session_state.temperature,
-                        max_tokens=st.session_state.max_tokens,
-                        model=st.session_state.selected_model
-                    )
-                    
-                    # Display response
-                    response_text = response.get("message", "Sorry, an error occurred.")
-                    
-                    # Show structured data if available
-                    if response.get("parsed_data") and response.get("format_valid"):
-                        response_format = response.get("response_format")
-                        agent_id = st.session_state.current_agent
-                        metadata = {
-                            "model": response.get("model"),
-                            "usage": response.get("usage"),
-                            "finish_reason": response.get("finish_reason")
-                        }
-                        render_structured_response(response["parsed_data"], response_format, agent_id, response_text, metadata)
-                    else:
-                        st.write(response_text)
-                    
-                    # Add assistant response to session state
-                    assistant_message = {
-                        "role": "assistant",
-                        "content": response_text,
-                        "timestamp": time.time(),
-                        "raw_response": response,  # Save full API response
-                        "parsed_data": response.get("parsed_data"),
-                        "format_valid": response.get("format_valid"),
-                        "metadata": {
-                            "model": response.get("model"),
-                            "usage": response.get("usage"),
-                            "agent_id": st.session_state.current_agent,
-                            "finish_reason": response.get("finish_reason")
-                        }
-                    }
-                    
-                    st.session_state.messages.append(assistant_message)
-                    
-                    # Limit message history
-                    max_history = 50
-                    if len(st.session_state.messages) > max_history:
-                        st.session_state.messages = st.session_state.messages[-max_history:]
-                    
-                except Exception as e:
-                    error_message = f"Error sending message: {e}"
-                    st.error(error_message)
-                    
-                    # Add error message to history
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": error_message,
-                        "timestamp": time.time()
-                    })
-
-def render_chat_export():
-    """Render chat export functionality"""
-    if st.session_state.messages:
-        st.subheader("📥 Chat Export")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("💾 Download as JSON", width="content"):
-                import json
-                chat_data = {
-                    "messages": st.session_state.messages,
-                    "exported_at": time.time(),
-                    "agent_id": st.session_state.current_agent
-                }
-                
-                st.download_button(
-                    label="📄 Download JSON file",
-                    data=json.dumps(chat_data, indent=2, ensure_ascii=False),
-                    file_name=f"chat_export_{int(time.time())}.json",
-                    mime="application/json"
-                )
-        
-        with col2:
-            if st.button("📋 Copy as text", width="content"):
-                text_export = []
-                for msg in st.session_state.messages:
-                    role = "User" if msg["role"] == "user" else "Assistant"
-                    text_export.append(f"{role}: {msg['content']}")
-                
-                text_content = "\n\n".join(text_export)
-                st.text_area("Chat export:", value=text_content, height=200)

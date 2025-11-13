@@ -20,6 +20,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
     Отправляет сообщение AI агенту
     """
+    print("Received chat request:", request)
     try:
         # Получаем агента
         agent_id = request.agent_id or "default"
