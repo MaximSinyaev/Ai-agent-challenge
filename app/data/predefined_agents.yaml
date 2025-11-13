@@ -6,31 +6,50 @@ agents:
   default:
     id: "default"
     name: "Default Assistant"
-    description: "Default AI assistant agent."
-    system_prompt: "You are a helpful AI assistant. Answer the user's questions to the best of your ability."
+    description: "General-purpose AI assistant for various tasks and questions. Provides helpful responses on a wide range of topics."
+    system_prompt: |
+      You are a helpful AI assistant. Answer the user's questions to the best of your ability. 
+
+      ABOUT YOUR CAPABILITIES:
+      - I can help with general questions, explanations, writing, and problem-solving
+      - I provide conversational responses without strict formatting requirements
+      - I can assist with various topics including science, technology, creative tasks, and everyday questions
+
+      SPECIALIZED AGENTS AVAILABLE:
+      If users need specialized help, inform them about these expert agents:
+      - Math Assistant: For mathematical problems with step-by-step solutions and verification
+      - Code Assistant: For programming tasks with structured solutions, explanations, and test cases
+      - Data Analyst: For data analysis, finding patterns, and providing actionable recommendations
+      - Task Planner: For project management, breaking down tasks, and timeline planning
+
+      When users ask about specific domains covered by these agents, suggest they might get better structured results by switching to the appropriate specialist agent.
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.7
     max_tokens: 1000
     response_format: null
+    examples:
+      - "What is the capital of France?"
+      - "Can you explain quantum physics in simple terms?"
+      - "Help me write a professional email"
 
   # Математический ассистент
   math_assistant:
     id: "math_assistant"
     name: "Math Assistant"
-    description: "Специализированный математический ассистент с структурированными ответами"
-    system_prompt: "Ты математический ассистент. Решай математические задачи пошагово и четко структурируй ответы. Всегда проверяй правильность решения."
+    description: "Specialized mathematical assistant providing structured, step-by-step solutions for math problems with verification"
+    system_prompt: "You are a mathematical assistant. Solve mathematical problems step by step and structure your answers clearly. Always verify the correctness of the solution. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: problem_analysis, solution_steps, final_answer, confidence."
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.3
-    max_tokens: 1500
+    max_tokens: 2000
     response_format:
       type: "json"
-      description: "Структурированный ответ для математических задач с пошаговым решением"
+      description: "Structured response for mathematical problems with step-by-step solution"
       json_schema:
         type: "object"
         properties:
           problem_analysis:
             type: "string"
-            description: "Анализ математической задачи"
+            description: "Analysis of the mathematical problem"
           solution_steps:
             type: "array"
             items:
@@ -47,35 +66,35 @@ agents:
               required: ["step", "description"]
           final_answer:
             type: "string"
-            description: "Окончательный ответ"
+            description: "Final answer"
           verification:
             type: "string"
-            description: "Проверка правильности решения"
+            description: "Verification of solution correctness"
           confidence:
             type: "number"
             minimum: 0
             maximum: 1
-            description: "Уверенность в правильности (0-1)"
+            description: "Confidence in correctness (0-1)"
         required:
           ["problem_analysis", "solution_steps", "final_answer", "confidence"]
       examples:
         - |
           {
-            "problem_analysis": "Нужно найти производную функции f(x) = x² + 3x + 2",
+            "problem_analysis": "Need to find the derivative of function f(x) = x² + 3x + 2",
             "solution_steps": [
               {
                 "step": 1,
-                "description": "Применяем правило дифференцирования для каждого слагаемого",
+                "description": "Apply differentiation rule for each term",
                 "formula": "d/dx(x²) + d/dx(3x) + d/dx(2)"
               },
               {
                 "step": 2,
-                "description": "Вычисляем производную каждого слагаемого",
+                "description": "Calculate derivative of each term",
                 "calculation": "2x + 3 + 0"
               }
             ],
             "final_answer": "f'(x) = 2x + 3",
-            "verification": "Проверим: f'(1) = 2(1) + 3 = 5. Это верно.",
+            "verification": "Check: f'(1) = 2(1) + 3 = 5. This is correct.",
             "confidence": 0.98
           }
 
@@ -83,35 +102,35 @@ agents:
   code_assistant:
     id: "code_assistant"
     name: "Code Assistant"
-    description: "Специализированный программный ассистент для решения задач программирования"
-    system_prompt: "Ты опытный программист. Анализируй задачи программирования, предлагай эффективные решения с объяснениями и тестами."
+    description: "Specialized programming assistant for solving coding tasks with efficient solutions, explanations, and test cases"
+    system_prompt: "You are an experienced programmer. Analyze programming tasks, suggest efficient solutions with explanations and tests. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: task_understanding, approach, code, complexity."
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.2
-    max_tokens: 2000
+    max_tokens: 2500
     response_format:
       type: "json"
-      description: "Структурированный ответ для задач программирования"
+      description: "Structured response for programming tasks"
       json_schema:
         type: "object"
         properties:
           task_understanding:
             type: "string"
-            description: "Понимание задачи"
+            description: "Understanding of the task"
           approach:
             type: "string"
-            description: "Выбранный подход к решению"
+            description: "Selected approach to solution"
           code:
             type: "object"
             properties:
               language:
                 type: "string"
-                description: "Язык программирования"
+                description: "Programming language"
               content:
                 type: "string"
-                description: "Код решения"
+                description: "Solution code"
               explanation:
                 type: "string"
-                description: "Объяснение кода"
+                description: "Code explanation"
             required: ["language", "content", "explanation"]
           test_cases:
             type: "array"
@@ -120,36 +139,36 @@ agents:
               properties:
                 input:
                   type: "string"
-                  description: "Тестовые данные"
+                  description: "Test input data"
                 expected_output:
                   type: "string"
-                  description: "Ожидаемый результат"
+                  description: "Expected result"
               required: ["input", "expected_output"]
           complexity:
             type: "object"
             properties:
               time:
                 type: "string"
-                description: "Временная сложность"
+                description: "Time complexity"
               space:
                 type: "string"
-                description: "Пространственная сложность"
+                description: "Space complexity"
             required: ["time", "space"]
           improvements:
             type: "array"
             items:
               type: "string"
-            description: "Предложения по улучшению"
+            description: "Improvement suggestions"
         required: ["task_understanding", "approach", "code", "complexity"]
       examples:
         - |
           {
-            "task_understanding": "Нужно написать функцию для сортировки массива целых чисел",
-            "approach": "Используем встроенный алгоритм сортировки Python",
+            "task_understanding": "Need to write a function to sort an array of integers",
+            "approach": "Use Python's built-in sorting algorithm",
             "code": {
               "language": "python",
               "content": "def sort_array(arr):\n    return sorted(arr)",
-              "explanation": "Функция принимает массив и возвращает отсортированный массив, используя встроенную функцию sorted()"
+              "explanation": "Function takes an array and returns a sorted array using built-in sorted() function"
             },
             "test_cases": [
               {
@@ -161,35 +180,35 @@ agents:
               "time": "O(n log n)",
               "space": "O(n)"
             },
-            "improvements": ["Можно добавить параметр для выбора направления сортировки"]
+            "improvements": ["Could add parameter for choosing sort direction"]
           }
 
   # Аналитический ассистент
   data_analyst:
     id: "data_analyst"
     name: "Data Analyst"
-    description: "Ассистент для анализа данных и выработки инсайтов"
-    system_prompt: "Ты специалист по анализу данных. Анализируй предоставленную информацию, находи закономерности и формулируй практические рекомендации."
+    description: "Data analysis assistant for extracting insights, finding patterns, and providing actionable recommendations from datasets"
+    system_prompt: "You are a data analysis specialist. Analyze the provided information, find patterns and formulate practical recommendations. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: data_summary, key_insights, recommendations, confidence_level."
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.4
     max_tokens: 1800
     response_format:
       type: "json"
-      description: "Структурированный анализ данных с инсайтами и рекомендациями"
+      description: "Structured data analysis with insights and recommendations"
       json_schema:
         type: "object"
         properties:
           data_summary:
             type: "string"
-            description: "Краткое описание данных"
+            description: "Brief description of the data"
           key_insights:
             type: "array"
             items:
               type: "string"
-            description: "Основные выводы"
+            description: "Main findings and insights"
           metrics:
             type: "object"
-            description: "Ключевые метрики"
+            description: "Key metrics"
             additionalProperties:
               type: "object"
               properties:
@@ -208,7 +227,7 @@ agents:
               properties:
                 action:
                   type: "string"
-                  description: "Рекомендуемое действие"
+                  description: "Recommended action"
                 priority:
                   type: "string"
                   enum: ["high", "medium", "low"]
@@ -220,12 +239,12 @@ agents:
             type: "number"
             minimum: 0
             maximum: 1
-            description: "Уровень уверенности в анализе"
+            description: "Confidence level in analysis"
           limitations:
             type: "array"
             items:
               type: "string"
-            description: "Ограничения анализа"
+            description: "Analysis limitations"
         required:
           [
             "data_summary",
@@ -238,20 +257,20 @@ agents:
   task_planner:
     id: "task_planner"
     name: "Task Planner"
-    description: "Ассистент для планирования проектов и разбивки задач"
-    system_prompt: "Ты эксперт по управлению проектами. Анализируй проекты, разбивай их на задачи, оценивай сроки и ресурсы."
+    description: "Project planning assistant for breaking down complex projects into manageable tasks with timelines and resource estimates"
+    system_prompt: "You are a project management expert. Analyze projects, break them down into tasks, estimate timeframes and resources. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: project_breakdown, tasks, timeline."
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.5
     max_tokens: 2000
     response_format:
       type: "json"
-      description: "Структурированный план проекта с задачами и временными рамками"
+      description: "Structured project plan with tasks and timelines"
       json_schema:
         type: "object"
         properties:
           project_breakdown:
             type: "string"
-            description: "Разбор проекта"
+            description: "Project analysis and breakdown"
           tasks:
             type: "array"
             items:
