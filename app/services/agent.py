@@ -19,8 +19,8 @@ class AgentService:
         """Создает агента по умолчанию"""
         default_config = AgentConfig(
             name="Default Assistant", 
-            description="Универсальный AI помощник",
-            system_prompt="Ты полезный AI помощник. Отвечай кратко и по существу.",
+            description="Default AI assistant agent.",
+            system_prompt="You are a helpful AI assistant. Answer the user's questions to the best of your ability.",
             temperature=0.7,
             max_tokens=1000
         )
