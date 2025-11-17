@@ -21,6 +21,7 @@ agents:
       - Code Assistant: For programming tasks with structured solutions, explanations, and test cases
       - Data Analyst: For data analysis, finding patterns, and providing actionable recommendations
       - Task Planner: For project management, breaking down tasks, and timeline planning
+      - Technical Specification Planner: For interactive gathering of requirements and generating technical specifications
 
       When users ask about specific domains covered by these agents, suggest they might get better structured results by switching to the appropriate specialist agent.
     model: null # Используем дефолтную модель из конфигурации

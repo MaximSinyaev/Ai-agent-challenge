@@ -52,6 +52,8 @@ def render_structured_response(data: Any, response_format: dict = None, metadata
             render_analysis_response(data, metadata)
         elif "project_breakdown" in data and "tasks" in data:
             render_planning_response(data, metadata)
+        elif "status" in data and "message" in data:
+            render_technical_spec_response(data, metadata)
         else:
             # General JSON rendering for unknown structures
             st.json(data)
@@ -258,3 +260,64 @@ def render_planning_response(data: dict, raw_content: str = None, metadata: Dict
         for risk in data["risks"]:
             st.warning(f"**Risk:** {risk.get('risk', '')}")
             st.info(f"**Mitigation:** {risk.get('mitigation', '')}")
+
+
+def render_technical_spec_response(data: dict, raw_content: str = None, metadata: Dict[str, Any] = None):
+    """Rendering technical specification planner response"""
+    status = data.get("status", "collecting")
+    
+    if status == "collecting":
+        st.markdown("## 🔄 Gathering Requirements")
+        st.info(data.get("message", "Collecting information..."))
+        st.markdown("💡 **The assistant is still gathering requirements. Continue the conversation to provide more details.**")
+    elif status == "complete":
+        st.markdown("## 📋 Technical Specification")
+        st.success(data.get("message", "Technical specification generated."))
+        
+        final_spec = data.get("final_spec", {})
+        
+        # Title
+        if "title" in final_spec:
+            st.markdown(f"### 📄 {final_spec['title']}")
+        
+        # Overview
+        if "overview" in final_spec:
+            st.markdown("### 🎯 Overview")
+            st.write(final_spec["overview"])
+        
+        # Functional Requirements
+        if "functional_requirements" in final_spec:
+            st.markdown("### ✅ Functional Requirements")
+            for req in final_spec["functional_requirements"]:
+                st.write(f"• {req}")
+        
+        # Non-Functional Requirements
+        if "non_functional_requirements" in final_spec:
+            st.markdown("### ⚙️ Non-Functional Requirements")
+            for req in final_spec["non_functional_requirements"]:
+                st.write(f"• {req}")
+        
+        # Constraints
+        if "constraints" in final_spec:
+            st.markdown("### 🚧 Constraints")
+            for constraint in final_spec["constraints"]:
+                st.write(f"• {constraint}")
+        
+        # Deliverables
+        if "deliverables" in final_spec:
+            st.markdown("### 📦 Deliverables")
+            for deliverable in final_spec["deliverables"]:
+                st.write(f"• {deliverable}")
+        
+        # Timeline
+        if "timeline" in final_spec:
+            st.markdown("### ⏰ Timeline")
+            st.metric("Estimated Timeline", final_spec["timeline"])
+        
+        # Risks
+        if "risks" in final_spec:
+            st.markdown("### ⚠️ Risks")
+            for risk in final_spec["risks"]:
+                st.warning(f"• {risk}")
+    else:
+        st.error("Unknown response status")
