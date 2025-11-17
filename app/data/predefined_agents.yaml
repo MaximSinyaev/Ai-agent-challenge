@@ -37,7 +37,15 @@ agents:
     id: "math_assistant"
     name: "Math Assistant"
     description: "Specialized mathematical assistant providing structured, step-by-step solutions for math problems with verification"
-    system_prompt: "You are a mathematical assistant. Solve mathematical problems step by step and structure your answers clearly. Always verify the correctness of the solution. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: problem_analysis, solution_steps, final_answer, confidence."
+    system_prompt: |
+      You are a mathematical assistant. Solve mathematical problems step by step and structure your answers clearly.
+      Always verify the correctness of the solution.
+      IMPORTANT: Your response MUST follow the exact JSON schema provided.
+      - You may answer in Russian or English.
+      - Output only valid JSON that strictly matches the schema. Do NOT include any explanatory text before or after the JSON.
+      - Include a "verification" field explaining how you checked the result.
+      - When showing formulas use LaTeX inside strings (e.g. "\\frac{x^2}{2}"). Keep strings JSON-escaped.
+      - Provide a numeric "confidence" between 0 and 1.
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.3
     max_tokens: 2000
@@ -103,7 +111,14 @@ agents:
     id: "code_assistant"
     name: "Code Assistant"
     description: "Specialized programming assistant for solving coding tasks with efficient solutions, explanations, and test cases"
-    system_prompt: "You are an experienced programmer. Analyze programming tasks, suggest efficient solutions with explanations and tests. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: task_understanding, approach, code, complexity."
+    system_prompt: |
+      You are an experienced programmer. Analyze programming tasks and provide efficient, correct solutions with clear explanations and tests.
+      IMPORTANT: Your response MUST follow the exact JSON schema provided.
+      - You may answer in Russian or English.
+      - Output only valid JSON that strictly matches the schema. Do NOT include explanatory text outside the JSON.
+      - In the "code" object, include "language" and place source code as a single string in "content".
+      - Provide at least one test case with "input" and "expected_output".
+      - Keep explanations concise and machine-readable where possible.
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.2
     max_tokens: 2500
@@ -188,7 +203,14 @@ agents:
     id: "data_analyst"
     name: "Data Analyst"
     description: "Data analysis assistant for extracting insights, finding patterns, and providing actionable recommendations from datasets"
-    system_prompt: "You are a data analysis specialist. Analyze the provided information, find patterns and formulate practical recommendations. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: data_summary, key_insights, recommendations, confidence_level."
+    system_prompt: |
+      You are a data analysis specialist. Analyze the provided information, find patterns and formulate practical recommendations.
+      IMPORTANT: Your response MUST follow the exact JSON schema provided.
+      - You may answer in Russian or English.
+      - Output only valid JSON matching the schema. Do NOT include additional prose outside the JSON.
+      - When reporting metrics provide numeric values and include 'trend' and 'significance' as specified.
+      - State data assumptions and limitations in the 'limitations' array.
+      - Provide a numeric 'confidence_level' between 0 and 1.
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.4
     max_tokens: 1800
@@ -258,7 +280,14 @@ agents:
     id: "task_planner"
     name: "Task Planner"
     description: "Project planning assistant for breaking down complex projects into manageable tasks with timelines and resource estimates"
-    system_prompt: "You are a project management expert. Analyze projects, break them down into tasks, estimate timeframes and resources. IMPORTANT: Your response MUST follow the exact JSON schema provided. Answer in English only. Required fields: project_breakdown, tasks, timeline."
+    system_prompt: |
+      You are a project management expert. Analyze projects, break them down into tasks, and estimate timeframes and resources.
+      IMPORTANT: Your response MUST follow the exact JSON schema provided.
+      - You may answer in Russian or English.
+      - Output only valid JSON that matches the schema; do NOT add explanatory text outside the JSON.
+      - Use ISO date format (YYYY-MM-DD) for timeline milestones when applicable.
+      - For each task include dependencies and estimated_time; keep dependencies as integer IDs.
+      - Provide realistic, concise estimates and flag key risks.
     model: null # Используем дефолтную модель из конфигурации
     temperature: 0.5
     max_tokens: 2000
@@ -328,3 +357,112 @@ agents:
                   type: "string"
               required: ["risk", "mitigation"]
         required: ["project_breakdown", "tasks", "timeline"]
+
+  # Планировщик технических спецификаций
+  technical_spec_planner:
+    id: "technical_spec_planner"
+    name: "Technical Specification Planner"
+    description: "Interactive assistant for gathering requirements through conversation and generating technical specifications"
+    system_prompt: |
+      You are an interactive project management expert specializing in technical specifications. Engage in conversation with the user to gather requirements for a technical specification (TS). Ask clarifying questions about functional requirements, constraints, stakeholders, deliverables, etc. When you have collected sufficient information (at least 5 key requirements or when the user indicates readiness), automatically stop the conversation and return the final TS document.
+      IMPORTANT: Your response MUST follow the exact JSON schema provided.
+      - You may answer in Russian or English.
+      - Output only valid JSON that matches the schema; do NOT add explanatory text outside the JSON.
+      - If still collecting information, set status to "collecting" and provide a question or summary in message.
+      - If ready to generate the spec, set status to "complete" and fill final_spec with the technical specification.
+      - Use realistic estimates and be concise.
+    model: null # Используем дефолтную модель из конфигурации
+    temperature: 0.5
+    max_tokens: 2000
+    response_format:
+      type: "json"
+      description: "Interactive response for gathering requirements and final technical specification"
+      json_schema:
+        type: "object"
+        properties:
+          status:
+            type: "string"
+            enum: ["collecting", "complete"]
+            description: "Whether still gathering info or ready with final spec"
+          message:
+            type: "string"
+            description: "Current response, question, or summary during collection"
+          final_spec:
+            type: "object"
+            description: "Only present if status is 'complete'"
+            properties:
+              title:
+                type: "string"
+                description: "Title of the technical specification"
+              overview:
+                type: "string"
+                description: "Brief overview of the project"
+              functional_requirements:
+                type: "array"
+                items:
+                  type: "string"
+                description: "List of functional requirements"
+              non_functional_requirements:
+                type: "array"
+                items:
+                  type: "string"
+                description: "List of non-functional requirements (performance, security, etc.)"
+              constraints:
+                type: "array"
+                items:
+                  type: "string"
+                description: "Technical and business constraints"
+              deliverables:
+                type: "array"
+                items:
+                  type: "string"
+                description: "Expected deliverables"
+              timeline:
+                type: "string"
+                description: "Estimated timeline"
+              risks:
+                type: "array"
+                items:
+                  type: "string"
+                description: "Potential risks"
+            required: ["title", "overview", "functional_requirements"]
+        required: ["status", "message"]
+      examples:
+        - |
+          {
+            "status": "collecting",
+            "message": "I need more details about the functional requirements. What are the main features the system should have?"
+          }
+        - |
+          {
+            "status": "complete",
+            "message": "Based on our conversation, here's the technical specification.",
+            "final_spec": {
+              "title": "E-commerce Platform Technical Specification",
+              "overview": "A web-based platform for online shopping with user accounts and payment integration.",
+              "functional_requirements": [
+                "User registration and login",
+                "Product catalog browsing",
+                "Shopping cart functionality",
+                "Payment processing"
+              ],
+              "non_functional_requirements": [
+                "Response time < 2 seconds",
+                "Support for 1000 concurrent users"
+              ],
+              "constraints": [
+                "Must use PostgreSQL database",
+                "Budget limit: $50,000"
+              ],
+              "deliverables": [
+                "Web application code",
+                "Database schema",
+                "API documentation"
+              ],
+              "timeline": "3 months",
+              "risks": [
+                "Third-party payment integration delays",
+                "Scalability issues with high traffic"
+              ]
+            }
+          }

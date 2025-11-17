@@ -1,22 +1,20 @@
 import streamlit as st
 import json
 from typing import Dict, Any
-import sys
-from pathlib import Path
-
-# Добавляем путь к родительской директории для импорта модулей
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-# Page configuration
-st.set_page_config(page_title="⚙️ Настройки", page_icon="⚙️", layout="wide")
 
 def render_settings_page():
     """Application settings page"""
     
+    st.set_page_config(
+        page_title="Settings - AI Agent Interface", 
+        page_icon="⚙️",
+        layout="wide"
+    )
+    
     st.title("Settings")
     st.markdown("---")
     
-    # Инициализация API клиента
+    # API client initialization
     try:
         from web.utils.api_client import APIClient
         from web.utils.config import WebConfig
@@ -25,7 +23,7 @@ def render_settings_page():
         api_client = APIClient(config.backend_url)
         
     except Exception as e:
-        st.error(f"❌ Ошибка инициализации: {e}")
+        st.error(f"❌ Initialization error: {e}")
         st.stop()
     
     # Settings tabs
@@ -35,110 +33,110 @@ def render_settings_page():
     with tab1:
         st.header("Connection Settings")
         
-        # Текущие настройки
+        # Current settings
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("📋 Текущие настройки")
+            st.subheader("📋 Current settings")
             st.code(f"""
 Backend URL: {config.backend_url}
-Локальный backend: {config.is_backend_local}
-Таймаут кеширования: {config.cache_ttl_agents}с (агенты)
-Таймаут кеширования: {config.cache_ttl_models}с (модели)
+Local backend: {config.is_backend_local}
+Cache timeout: {config.cache_ttl_agents}s (agents)
+Cache timeout: {config.cache_ttl_models}s (models)
             """)
         
         with col2:
-            st.subheader("🔍 Проверка подключения")
+            st.subheader("🔍 Connection check")
             
-            if st.button("🔄 Проверить подключение", width="content"):
-                with st.spinner("Проверяем подключение..."):
+            if st.button("🔄 Check connection", width="content"):
+                with st.spinner("Checking connection..."):
                     try:
                         health = api_client.health_check()
-                        st.success("✅ Подключение успешно!")
+                        st.success("✅ Connection successful!")
                         st.json(health)
                     except Exception as e:
-                        st.error(f"❌ Ошибка подключения: {e}")
+                        st.error(f"❌ Connection error: {e}")
         
-        # Изменение URL backend
+        # Backend URL change
         st.markdown("---")
-        st.subheader("🔧 Изменить Backend URL")
+        st.subheader("🔧 Change Backend URL")
         
         new_backend_url = st.text_input(
             "Backend URL:",
             value=config.backend_url,
-            help="URL backend сервера (например: http://localhost:8000)"
+            help="Backend server URL (e.g.: http://localhost:8000)"
         )
         
-        if st.button("💾 Сохранить URL"):
-            # В реальном приложении здесь бы мы сохраняли в настройки
-            st.success("✅ URL сохранен (перезапустите приложение для применения)")
+        if st.button("💾 Save URL"):
+            # In a real application, we would save to settings here
+            st.success("✅ URL saved (restart application to apply)")
     
-    # Настройки интерфейса
+    # Interface settings
     with tab2:
-        st.header("🎛️ Настройки интерфейса")
+        st.header("🎛️ Interface settings")
         
-        # Тема (заглушка)
-        st.subheader("🎨 Оформление")
+        # Theme (placeholder)
+        st.subheader("🎨 Appearance")
         theme = st.selectbox(
-            "Тема:",
+            "Theme:",
             ["Auto", "Light", "Dark"],
-            help="Тема оформления (управляется Streamlit)"
+            help="Appearance theme (managed by Streamlit)"
         )
         
-        # Настройки чата
-        st.subheader("💬 Настройки чата")
+        # Chat settings
+        st.subheader("💬 Chat settings")
         
         col1, col2 = st.columns(2)
         
         with col1:
             max_history = st.number_input(
-                "Макс. сообщений в истории:",
+                "Max messages in history:",
                 min_value=10,
                 max_value=200,
                 value=config.max_history_length,
-                help="Максимальное количество сообщений для хранения"
+                help="Maximum number of messages to store"
             )
         
         with col2:
             auto_scroll = st.checkbox(
-                "Автопрокрутка чата",
+                "Auto-scroll chat",
                 value=True,
-                help="Автоматически прокручивать к новым сообщениям"
+                help="Automatically scroll to new messages"
             )
         
-        # Экспериментальные функции
-        st.subheader("🧪 Экспериментальные функции")
+        # Experimental features
+        st.subheader("🧪 Experimental features")
         
         col1, col2 = st.columns(2)
         
         with col1:
             enable_voice = st.checkbox(
-                "Голосовой ввод",
+                "Voice input",
                 value=False,
                 disabled=True,
-                help="Функция в разработке"
+                help="Feature in development"
             )
         
         with col2:
             enable_images = st.checkbox(
-                "Поддержка изображений", 
+                "Image support", 
                 value=False,
                 disabled=True,
-                help="Функция в разработке"
+                help="Feature in development"
             )
     
-    # Настройки AI моделей
+    # AI models settings
     with tab3:
-        st.header("🤖 Настройки AI моделей")
+        st.header("🤖 AI Models Settings")
         
-        # Параметры по умолчанию
-        st.subheader("🎯 Параметры по умолчанию")
+        # Default parameters
+        st.subheader("🎯 Default Parameters")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             default_temperature = st.slider(
-                "Температура по умолчанию:",
+                "Default temperature:",
                 min_value=0.0,
                 max_value=2.0,
                 value=config.default_temperature,
@@ -147,7 +145,7 @@ Backend URL: {config.backend_url}
         
         with col2:
             default_max_tokens = st.number_input(
-                "Макс. токены по умолчанию:",
+                "Default max tokens:",
                 min_value=50,
                 max_value=4000,
                 value=config.default_max_tokens
@@ -155,81 +153,81 @@ Backend URL: {config.backend_url}
         
         with col3:
             timeout = st.number_input(
-                "Таймаут запроса (сек):",
+                "Request timeout (sec):",
                 min_value=5,
                 max_value=120,
                 value=30
             )
         
-        # Доступные модели
-        st.subheader("📋 Доступные модели")
+        # Available models
+        st.subheader("📋 Available Models")
         
         try:
             models = api_client.get_models()
             if models:
-                st.success(f"✅ Доступно {len(models)} моделей")
+                st.success(f"✅ {len(models)} models available")
                 
-                # Показываем первые несколько моделей
+                # Show first few models
                 for model in models[:5]:
                     with st.expander(f"🤖 {model.get('name', model.get('id'))}", expanded=False):
                         st.json(model)
                 
                 if len(models) > 5:
-                    st.info(f"... и еще {len(models) - 5} моделей. Полный список доступен на странице 'Модели'")
+                    st.info(f"... and {len(models) - 5} more models. Full list available on 'Models' page")
             else:
-                st.warning("⚠️ Модели не найдены")
+                st.warning("⚠️ Models not found")
         except Exception as e:
-            st.error(f"❌ Ошибка загрузки моделей: {e}")
+            st.error(f"❌ Error loading models: {e}")
     
-    # Управление данными
+    # Data management
     with tab4:
-        st.header("📊 Управление данными")
+        st.header("📊 Data Management")
         
-        # Статистика
-        st.subheader("📈 Статистика")
+        # Statistics
+        st.subheader("📈 Statistics")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            # Подсчет сообщений в текущей сессии
+            # Count messages in current session
             message_count = len(st.session_state.get('messages', []))
-            st.metric("Сообщений в сессии", message_count)
+            st.metric("Messages in session", message_count)
         
         with col2:
-            # Подсчет агентов
+            # Count agents
             try:
                 agents = api_client.get_agents()
                 agent_count = len(agents) if agents else 0
             except:
                 agent_count = 0
-            st.metric("Всего агентов", agent_count)
+            st.metric("Total agents", agent_count)
         
         with col3:
-            st.metric("Размер кеша", "N/A")
+            st.metric("Cache size", "N/A")
         
         with col4:
-            st.metric("Время работы", "N/A")
+            st.metric("Uptime", "N/A")
         
-        # Очистка данных
-        st.subheader("🗑️ Очистка данных")
+        # Data cleanup
+        st.subheader("🗑️ Data Cleanup")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("🗑️ Очистить историю чата", type="secondary", width="content"):
+            if st.button("🗑️ Clear chat history", type="secondary", width="content"):
                 if 'messages' in st.session_state:
                     st.session_state.messages = []
-                st.success("✅ История чата очищена")
+                st.success("✅ Chat history cleared")
                 st.rerun()
         
         with col2:
-            if st.button("🔄 Очистить кеш", type="secondary", width="content"):
+            if st.button("🔄 Clear cache", type="secondary", width="content"):
                 st.cache_data.clear()
-                st.success("✅ Кеш очищен")
+                st.success("✅ Cache cleared")
                 st.rerun()
         
-        # Экспорт данных
-        st.subheader("📥 Экспорт данных")
+        # Data export
+        st.subheader("📥 Data Export")
         
         export_data = {
             "session_messages": st.session_state.get('messages', []),
@@ -241,12 +239,12 @@ Backend URL: {config.backend_url}
         }
         
         st.download_button(
-            "💾 Скачать данные сессии (JSON)",
+            "💾 Download session data (JSON)",
             data=json.dumps(export_data, indent=2, ensure_ascii=False),
             file_name=f"session_export_{int(st.session_state.get('session_start', 0))}.json",
             mime="application/json",
             width="content"
         )
 
-# Запуск страницы
-render_settings_page()
+if __name__ == "__main__":
+    render_settings_page()

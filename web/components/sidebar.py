@@ -3,24 +3,24 @@ import streamlit as st
 def render_sidebar():
     """Render sidebar with navigation and settings"""
     
-    st.header("🎛️ Панель управления")
-    # NOTE: Навигация в верхнем блоке (App / Models / Settings / Statistics). Убираем дублирование здесь.
+    st.header("🎛️ Control Panel")
+    # NOTE: Navigation in the top block (App / Models / Settings / Statistics). Removing duplication here.
     
     # Connection information
-    with st.expander("🔗 Соединение", expanded=False):
+    with st.expander("🔗 Connection", expanded=False):
         try:
             health = st.session_state.api_client.health_check()
-            st.success(f"✅ Подключено к: {health.get('service', 'Unknown')}")
-            st.info(f"📝 Версия: {health.get('version', 'Unknown')}")
+            st.success(f"✅ Connected to: {health.get('service', 'Unknown')}")
+            st.info(f"📝 Version: {health.get('version', 'Unknown')}")
             if health.get('openrouter_configured'):
-                st.success("🌐 OpenRouter настроен")
+                st.success("🌐 OpenRouter configured")
             else:
-                st.warning("⚠️ OpenRouter не настроен")
+                st.warning("⚠️ OpenRouter not configured")
         except Exception as e:
-            st.error(f"❌ Ошибка соединения: {e}")
+            st.error(f"❌ Connection error: {e}")
     
     # Agent selection
-    st.subheader("🤖 Текущий агент")
+    st.subheader("🤖 Current Agent")
     
     try:
         agents = st.session_state.api_client.get_agents()
@@ -29,64 +29,90 @@ def render_sidebar():
         if agents:
             agent_options = {agent['id']: f"{agent['name']}" for agent in agents}
             selected_agent = st.selectbox(
-                "Выберите агента:",
+                "Select agent:",
                 options=list(agent_options.keys()),
                 format_func=lambda x: agent_options[x],
                 index=0 if st.session_state.current_agent not in agent_options else list(agent_options.keys()).index(st.session_state.current_agent)
             )
-            st.session_state.current_agent = selected_agent
+            
+            # Automatically apply agent settings when switching
+            if st.session_state.current_agent != selected_agent:
+                st.session_state.current_agent = selected_agent
+                # Apply new agent settings
+                new_agent_info = next((agent for agent in agents if agent['id'] == selected_agent), None)
+                if new_agent_info:
+                    if 'temperature' in new_agent_info:
+                        st.session_state.temperature = new_agent_info['temperature']
+                    if 'max_tokens' in new_agent_info:
+                        st.session_state.max_tokens = new_agent_info['max_tokens']
             
             # Selected agent information
             current_agent_info = next((agent for agent in agents if agent['id'] == selected_agent), None)
             if current_agent_info:
-                with st.expander("ℹ️ Информация об агенте", expanded=False):
-                    st.write(f"**Имя:** {current_agent_info['name']}")
-                    st.write(f"**Описание:** {current_agent_info.get('description', 'Нет описания')}")
-                    st.write(f"**Модель:** {current_agent_info.get('model', 'По умолчанию')}")
+                with st.expander("ℹ️ Agent Information", expanded=False):
+                    st.write(f"**Name:** {current_agent_info['name']}")
+                    st.write(f"**Description:** {current_agent_info.get('description', 'No description')}")
+                    st.write(f"**Model:** {current_agent_info.get('model', 'Default')}")
+                    
+                    # Show agent parameters
+                    if 'temperature' in current_agent_info:
+                        st.write(f"**Agent Temperature:** {current_agent_info['temperature']}")
+                    if 'max_tokens' in current_agent_info:
+                        st.write(f"**Agent Max Tokens:** {current_agent_info['max_tokens']}")
+                    
+                    # Button to apply agent settings
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("📥 Apply Agent Settings", help="Apply temperature and tokens from agent settings"):
+                            if 'temperature' in current_agent_info:
+                                st.session_state.temperature = current_agent_info['temperature']
+                            if 'max_tokens' in current_agent_info:
+                                st.session_state.max_tokens = current_agent_info['max_tokens']
+                            st.rerun()
         else:
-            st.warning("⚠️ Агенты не найдены")
+            st.warning("⚠️ Agents not found")
             
     except Exception as e:
-        st.error(f"❌ Ошибка загрузки агентов: {e}")
+        st.error(f"❌ Error loading agents: {e}")
     
-    # Управление агентами (показываем только если выбрана соответствующая страница)
+    # Agent management (show only if agents page is selected)
     if st.session_state.current_page == "agents":
         st.divider()
         render_agent_management()
     
     # Model settings
-    st.subheader("🎛️ Параметры модели")
+    st.subheader("🎛️ Model Parameters")
     
     # Temperature
     temperature = st.slider(
-        "🌡️ Температура:",
+        "🌡️ Temperature:",
         min_value=0.0,
         max_value=2.0,
         value=st.session_state.temperature,
         step=0.1,
-        help="Контролирует творческость ответов. Меньше = предсказуемее, больше = креативнее"
+        help="Controls response creativity. Lower = more predictable, higher = more creative"
     )
     st.session_state.temperature = temperature
     
     # Maximum tokens
     max_tokens = st.slider(
-        "📝 Макс. токены:",
+        "📝 Max tokens:",
         min_value=50,
         max_value=4000,
         value=st.session_state.max_tokens,
         step=50,
-        help="Максимальная длина ответа"
+        help="Maximum response length"
     )
     st.session_state.max_tokens = max_tokens
     
-    # Выбор модели (опционально)
-    with st.expander("🎯 Кастомная модель", expanded=False):
+    # Custom model selection (optional)
+    with st.expander("🎯 Custom Model", expanded=False):
         try:
             models = st.session_state.api_client.get_models()
             if models:
-                model_options = ["По умолчанию"] + [model.get('id', str(model)) for model in models[:20]]  # Ограничиваем количество
+                model_options = ["Default"] + [model.get('id', str(model)) for model in models[:20]]  # Limit quantity
                 selected_model_idx = st.selectbox(
-                    "Модель:",
+                    "Model:",
                     options=range(len(model_options)),
                     format_func=lambda x: model_options[x],
                     index=0
@@ -97,43 +123,43 @@ def render_sidebar():
                 else:
                     st.session_state.selected_model = model_options[selected_model_idx]
             else:
-                st.info("Модели не загружены")
+                st.info("Models not loaded")
         except Exception as e:
-            st.error(f"Ошибка загрузки моделей: {e}")
+            st.error(f"Error loading models: {e}")
     
-    # Действия
-    st.subheader("⚡ Действия")
+    # Actions
+    st.subheader("⚡ Actions")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🧹 Очистить чат", width="content", help="Удалить все сообщения из текущего чата"):
+        if st.button("🧹 Clear Chat", width="content", help="Delete all messages from current chat"):
             st.session_state.messages = []
             st.rerun()
     
     with col2:
-        if st.button("🔄 Обновить данные", width="content", help="Обновить список агентов и модулей"):
-            # Очищаем кеш
+        if st.button("🔄 Refresh Data", width="content", help="Refresh agents and modules list"):
+            # Clear cache
             st.cache_data.clear()
             st.rerun()
     
-    # Информация о сессии
-    with st.expander("📊 Статистика сессии", expanded=False):
-        st.write(f"**Сообщений в чате:** {len(st.session_state.messages)}")
-        st.write(f"**Текущая температура:** {st.session_state.temperature}")
-        st.write(f"**Макс. токены:** {st.session_state.max_tokens}")
+    # Session information
+    with st.expander("📊 Session Statistics", expanded=False):
+        st.write(f"**Messages in chat:** {len(st.session_state.messages)}")
+        st.write(f"**Current temperature:** {st.session_state.temperature}")
+        st.write(f"**Max tokens:** {st.session_state.max_tokens}")
         if st.session_state.selected_model:
-            st.write(f"**Выбранная модель:** {st.session_state.selected_model}")
+            st.write(f"**Selected model:** {st.session_state.selected_model}")
         else:
-            st.write("**Модель:** По умолчанию")
+            st.write("**Model:** Default")
 
 def render_agent_management():
-    """Рендер компактного управления агентами в sidebar"""
+    """Render compact agent management in sidebar"""
     
-    st.subheader("🛠️ Управление агентами")
+    st.subheader("🛠️ Agent Management")
     
-    # Вкладки для управления
-    tab1, tab2 = st.tabs(["➕ Создать", "🗑️ Удалить"])
+    # Management tabs
+    tab1, tab2 = st.tabs(["➕ Create", "🗑️ Delete"])
     
     with tab1:
         render_create_agent_compact()
@@ -142,24 +168,24 @@ def render_agent_management():
         render_delete_agent_compact()
 
 def render_create_agent_compact():
-    """Компактная форма создания агента"""
+    """Compact form for creating agent"""
     
     with st.form("create_agent_compact"):
-        st.markdown("**Новый агент**")
+        st.markdown("**New Agent**")
         
-        name = st.text_input("Имя*:", placeholder="Python Expert")
-        description = st.text_area("Описание:", placeholder="Краткое описание", height=60)
-        system_prompt = st.text_area("Системный промпт*:", 
-                                   placeholder="Ты опытный разработчик...", 
+        name = st.text_input("Name*:", placeholder="Python Expert")
+        description = st.text_area("Description:", placeholder="Brief description", height=60)
+        system_prompt = st.text_area("System Prompt*:", 
+                                   placeholder="You are an experienced developer...", 
                                    height=100)
         
         col1, col2 = st.columns(2)
         with col1:
-            temperature = st.slider("Температура:", 0.0, 2.0, 0.7, 0.1)
+            temperature = st.slider("Temperature:", 0.0, 2.0, 0.7, 0.1)
         with col2:
-            max_tokens = st.number_input("Токены:", 50, 4000, 1000, 50)
+            max_tokens = st.number_input("Tokens:", 50, 4000, 1000, 50)
         
-        submit = st.form_submit_button("🚀 Создать", width="content")
+        submit = st.form_submit_button("🚀 Create", width="content")
         
         if submit and name.strip() and system_prompt.strip():
             try:
@@ -171,20 +197,20 @@ def render_create_agent_compact():
                     "max_tokens": max_tokens
                 }
                 
-                with st.spinner("Создание..."):
+                with st.spinner("Creating..."):
                     response = st.session_state.api_client.create_agent(config)
                 
-                st.success(f"✅ Агент '{name}' создан!")
+                st.success(f"✅ Agent '{name}' created!")
                 st.cache_data.clear()
                 st.rerun()
                 
             except Exception as e:
-                st.error(f"❌ Ошибка: {e}")
+                st.error(f"❌ Error: {e}")
         elif submit:
-            st.error("❌ Заполните обязательные поля")
+            st.error("❌ Fill in required fields")
 
 def render_delete_agent_compact():
-    """Компактная форма удаления агента"""
+    """Compact form for deleting agent"""
     
     try:
         agents = st.session_state.api_client.get_agents()
@@ -194,7 +220,7 @@ def render_delete_agent_compact():
             agent_options = {agent['id']: f"{agent['name']}" for agent in deletable_agents}
             
             selected_agent_id = st.selectbox(
-                "Агент для удаления:",
+                "Agent to delete:",
                 options=list(agent_options.keys()),
                 format_func=lambda x: f"🗑️ {agent_options[x]}"
             )
@@ -202,11 +228,11 @@ def render_delete_agent_compact():
             col1, col2 = st.columns(2)
             
             with col1:
-                confirm = st.text_input("Введите ID:", placeholder=selected_agent_id)
+                confirm = st.text_input("Enter ID:", placeholder=selected_agent_id)
             
             with col2:
-                st.write("")  # Отступ
-                if st.button("🗑️ Удалить", 
+                st.write("")  # Spacing
+                if st.button("🗑️ Delete", 
                            disabled=(confirm != selected_agent_id),
                            width="content"):
                     try:
@@ -215,14 +241,14 @@ def render_delete_agent_compact():
                         if st.session_state.current_agent == selected_agent_id:
                             st.session_state.current_agent = "default"
                         
-                        st.success("✅ Агент удален!")
+                        st.success("✅ Agent deleted!")
                         st.cache_data.clear()
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"❌ Ошибка: {e}")
+                        st.error(f"❌ Error: {e}")
         else:
-            st.info("📭 Нет агентов для удаления")
+            st.info("📭 No agents to delete")
             
     except Exception as e:
-        st.error(f"❌ Ошибка: {e}")
+        st.error(f"❌ Error: {e}")

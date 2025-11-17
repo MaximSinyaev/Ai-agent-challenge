@@ -26,3 +26,6 @@ def init_session_state():
     
     if 'selected_model' not in st.session_state:
         st.session_state.selected_model = None
+    
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = "chat"

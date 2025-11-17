@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# Добавляем путь к родительской директории для импорта модулей backend
+# Add path to parent directory for backend module imports
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Page configuration
@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 def main():
-    """Main application function - перенаправляет на страницы навигации"""
+    """Main application function - redirects to navigation pages"""
     
     st.title("🤖 AI Agent Interface")
     
@@ -39,7 +39,7 @@ def main():
     *AI Agent Challenge Project - Intelligent agents for solving various tasks*
     """)
     
-    # Проверка соединения с backend
+    # Backend connection check
     try:
         from web.utils.api_client import APIClient
         from web.utils.config import WebConfig

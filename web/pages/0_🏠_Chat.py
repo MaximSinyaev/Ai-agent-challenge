@@ -8,6 +8,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from web.utils.init_session import init_session_state
 from web.components.chat import render_structured_response
+from web.components.sidebar import render_sidebar
 
 # Page configuration
 st.set_page_config(
@@ -36,126 +37,7 @@ def load_models():
         st.error(f"Error loading models: {e}")
         return []
 
-def render_sidebar():
-    """Render sidebar with navigation and settings"""
-    
-    st.header("🎛️ Control Panel")
-    
-    # Connection information
-    with st.expander("🔗 Connection", expanded=False):
-        try:
-            health = st.session_state.api_client.health_check()
-            st.success(f"✅ Connected to: {health.get('service', 'Unknown')}")
-            st.info(f"📝 Version: {health.get('version', 'Unknown')}")
-            if health.get('openrouter_configured'):
-                st.success("🌐 OpenRouter configured")
-            else:
-                st.warning("⚠️ OpenRouter not configured")
-        except Exception as e:
-            st.error(f"❌ Connection error: {e}")
-    
-    # Agent selection
-    st.subheader("🤖 Current Agent")
-    
-    try:
-        agents = st.session_state.api_client.get_agents()
-        st.session_state.agents_list = agents
-        
-        if agents:
-            agent_options = {agent['id']: f"{agent['name']}" for agent in agents}
-            selected_agent = st.selectbox(
-                "Select agent:",
-                options=list(agent_options.keys()),
-                format_func=lambda x: agent_options[x],
-                index=0 if st.session_state.current_agent not in agent_options else list(agent_options.keys()).index(st.session_state.current_agent)
-            )
-            st.session_state.current_agent = selected_agent
-            
-            # Selected agent information
-            current_agent_info = next((agent for agent in agents if agent['id'] == selected_agent), None)
-            if current_agent_info:
-                with st.expander("ℹ️ Agent Information", expanded=False):
-                    st.write(f"**Name:** {current_agent_info['name']}")
-                    st.write(f"**Description:** {current_agent_info.get('description', 'No description')}")
-                    st.write(f"**Model:** {current_agent_info.get('model', 'Default')}")
-        else:
-            st.warning("⚠️ No agents found")
-            
-    except Exception as e:
-        st.error(f"❌ Error loading agents: {e}")
-    
-    # Model settings
-    st.subheader("🎛️ Model Parameters")
-    
-    # Temperature
-    temperature = st.slider(
-        "🌡️ Temperature:",
-        min_value=0.0,
-        max_value=2.0,
-        value=st.session_state.temperature,
-        step=0.1,
-        help="Controls response creativity. Lower = more predictable, higher = more creative"
-    )
-    st.session_state.temperature = temperature
-    
-    # Maximum tokens
-    max_tokens = st.slider(
-        "📝 Max tokens:",
-        min_value=50,
-        max_value=4000,
-        value=st.session_state.max_tokens,
-        step=50,
-        help="Maximum response length"
-    )
-    st.session_state.max_tokens = max_tokens
-    
-    # Model selection (optional)
-    with st.expander("🎯 Custom Model", expanded=False):
-        try:
-            models = st.session_state.api_client.get_models()
-            if models:
-                model_options = ["Default"] + [model.get('id', str(model)) for model in models[:20]]  # Limit count
-                selected_model_idx = st.selectbox(
-                    "Model:",
-                    options=range(len(model_options)),
-                    format_func=lambda x: model_options[x],
-                    index=0
-                )
-                
-                if selected_model_idx == 0:
-                    st.session_state.selected_model = None
-                else:
-                    st.session_state.selected_model = model_options[selected_model_idx]
-            else:
-                st.info("Models not loaded")
-        except Exception as e:
-            st.error(f"Error loading models: {e}")
-    
-    # Actions
-    st.subheader("⚡ Actions")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🧹 Clear Chat", width="content", help="Delete all messages from current chat"):
-            st.session_state.messages = []
-            st.rerun()
-    
-    with col2:
-        if st.button("🔄 Refresh Data", width="content", help="Refresh agents and models list"):
-            # Clear cache
-            st.cache_data.clear()
-            st.rerun()
-    
-    # Session information
-    with st.expander("📊 Session Statistics", expanded=False):
-        st.write(f"**Messages in chat:** {len(st.session_state.messages)}")
-        st.write(f"**Current temperature:** {st.session_state.temperature}")
-        st.write(f"**Max tokens:** {st.session_state.max_tokens}")
-        if st.session_state.selected_model:
-            st.write(f"**Selected model:** {st.session_state.selected_model}")
-        else:
-            st.write("**Model:** Default")
+# Убираем функцию render_sidebar, так как теперь используем импортированную
 
 def render_chat_interface():
     """Render chat interface"""
@@ -167,32 +49,44 @@ def render_chat_interface():
         st.title("💬 AI Agent Chat")
     
     with col2:
-        # Quick agent selector
+        # Quick agent selector (закомментирован для избежания конфликтов с sidebar)
+        # TODO: В будущем можно раскомментировать для быстрого доступа к смене агента
+        # try:
+        #     agents = st.session_state.api_client.get_agents()
+        #     
+        #     if agents:
+        #         agent_options = {agent['id']: agent['name'] for agent in agents}
+        #         current_index = 0
+        #         if st.session_state.current_agent in agent_options:
+        #             current_index = list(agent_options.keys()).index(st.session_state.current_agent)
+        #         
+        #         selected_agent = st.selectbox(
+        #             "🤖 Quick Agent Select:",
+        #             options=list(agent_options.keys()),
+        #             format_func=lambda x: agent_options[x],
+        #             index=current_index,
+        #             key="quick_agent_select"
+        #         )
+        #         
+        #         if selected_agent != st.session_state.current_agent:
+        #             st.session_state.current_agent = selected_agent
+        #             st.rerun()
+        #     else:
+        #         st.warning("⚠️ No agents found")
+        #         
+        # except Exception as e:
+        #     st.error(f"❌ Error loading agents: {e}")
+        
+        # Показываем информацию о текущем агенте
         try:
             agents = st.session_state.api_client.get_agents()
-            
-            if agents:
-                agent_options = {agent['id']: agent['name'] for agent in agents}
-                current_index = 0
-                if st.session_state.current_agent in agent_options:
-                    current_index = list(agent_options.keys()).index(st.session_state.current_agent)
-                
-                selected_agent = st.selectbox(
-                    "🤖 Quick Agent Select:",
-                    options=list(agent_options.keys()),
-                    format_func=lambda x: agent_options[x],
-                    index=current_index,
-                    key="quick_agent_select"
-                )
-                
-                if selected_agent != st.session_state.current_agent:
-                    st.session_state.current_agent = selected_agent
-                    st.rerun()
+            current_agent_info = next((agent for agent in agents if agent['id'] == st.session_state.current_agent), None)
+            if current_agent_info:
+                st.info(f"🤖 Текущий агент: **{current_agent_info['name']}**")
             else:
-                st.warning("⚠️ No agents found")
-                
+                st.warning("⚠️ Агент не найден")
         except Exception as e:
-            st.error(f"❌ Error loading agents: {e}")
+            st.error(f"❌ Ошибка загрузки агента: {e}")
     
     with col3:
         # Quick stats
