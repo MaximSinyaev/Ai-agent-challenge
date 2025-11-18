@@ -83,6 +83,14 @@ def render_sidebar():
     # Model settings
     st.subheader("🎛️ Model Parameters")
     
+    # Temperature comparison mode
+    temperature_comparison = st.checkbox(
+        "🔄 Compare Temperatures",
+        value=st.session_state.temperature_comparison_mode,
+        help="Send the same message with different temperatures (0, 0.7, 1.2) for comparison"
+    )
+    st.session_state.temperature_comparison_mode = temperature_comparison
+    
     # Temperature
     temperature = st.slider(
         "🌡️ Temperature:",
@@ -90,7 +98,8 @@ def render_sidebar():
         max_value=2.0,
         value=st.session_state.temperature,
         step=0.1,
-        help="Controls response creativity. Lower = more predictable, higher = more creative"
+        help="Controls response creativity. Lower = more predictable, higher = more creative",
+        disabled=temperature_comparison  # Disable when comparison mode is on
     )
     st.session_state.temperature = temperature
     

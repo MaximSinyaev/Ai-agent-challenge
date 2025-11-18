@@ -29,3 +29,6 @@ def init_session_state():
     
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "chat"
+    
+    if 'temperature_comparison_mode' not in st.session_state:
+        st.session_state.temperature_comparison_mode = False
