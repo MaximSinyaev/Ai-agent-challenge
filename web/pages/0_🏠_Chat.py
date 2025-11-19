@@ -39,6 +39,51 @@ def load_models():
 
 # Убираем функцию render_sidebar, так как теперь используем импортированную
 
+def format_token_info(usage, fallback_tokens=None):
+    """Format token information for display"""
+    if usage:
+        input_tokens = usage.get("prompt_tokens")
+        output_tokens = usage.get("completion_tokens")
+        total_tokens = usage.get("total_tokens")
+        
+        if input_tokens is not None and output_tokens is not None:
+            return f"**Tokens:** {total_tokens} (📥 {input_tokens} + 📤 {output_tokens})"
+        elif total_tokens:
+            return f"**Tokens:** {total_tokens}"
+    
+    # Fallback для старого формата
+    if fallback_tokens:
+        return f"**Tokens:** {fallback_tokens}"
+    
+    return None
+
+def prepare_conversation_history(messages, max_messages=50):
+    """Подготавливает историю разговора для отправки в API
+    
+    Args:
+        messages: список сообщений из st.session_state.messages
+        max_messages: максимальное количество сообщений для отправки
+        
+    Returns:
+        список ChatMessage для API
+    """
+    if not messages:
+        return []
+    
+    # Берем последние max_messages пар сообщений (user + assistant)
+    recent_messages = messages[-max_messages*2:] if len(messages) > max_messages*2 else messages
+    
+    history = []
+    for msg in recent_messages:
+        if msg["role"] in ["user", "assistant"]:
+            # Преобразуем в формат API
+            history.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+    
+    return history
+
 def render_chat_interface():
     """Render chat interface"""
     
@@ -82,7 +127,15 @@ def render_chat_interface():
             agents = st.session_state.api_client.get_agents()
             current_agent_info = next((agent for agent in agents if agent['id'] == st.session_state.current_agent), None)
             if current_agent_info:
-                st.info(f"🤖 Текущий агент: **{current_agent_info['name']}**")
+                model_info = ""
+                if st.session_state.selected_model:
+                    model_info = f" | 🎯 Модель: **{st.session_state.selected_model}**"
+                elif current_agent_info.get('model'):
+                    model_info = f" | 🎯 Модель агента: **{current_agent_info['model']}**"
+                else:
+                    model_info = " | 🎯 Модель: **Default**"
+                
+                st.info(f"🤖 Текущий агент: **{current_agent_info['name']}**{model_info}")
             else:
                 st.warning("⚠️ Агент не найден")
         except Exception as e:
@@ -175,8 +228,17 @@ def render_chat_interface():
                             st.write(f"**Temperature:** {metadata['temperature']}")
                         if metadata.get("max_tokens"):
                             st.write(f"**Max tokens:** {metadata['max_tokens']}")
-                        if metadata.get("tokens_used"):
-                            st.write(f"**Tokens used:** {metadata['tokens_used']}")
+                        
+                        # Показываем детальную информацию о токенах
+                        input_tokens = metadata.get("input_tokens")
+                        output_tokens = metadata.get("output_tokens")
+                        tokens_used = metadata.get("tokens_used")
+                        
+                        if input_tokens is not None and output_tokens is not None:
+                            total = tokens_used or (input_tokens + output_tokens)
+                            st.write(f"**Tokens:** {total} (📥 {input_tokens} + 📤 {output_tokens})")
+                        elif tokens_used:
+                            st.write(f"**Tokens used:** {tokens_used}")
                         
                         # Показываем статус валидации формата если есть
                         if metadata.get("format_valid") is not None:
@@ -197,7 +259,7 @@ def render_chat_interface():
                                 st.json(message["parsed_data"])
     
     # Chat input
-    if prompt := st.chat_input("Enter your message..."):
+    if prompt := st.chat_input("Enter your message...", max_chars=None):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
         
@@ -253,11 +315,14 @@ def render_single_response(prompt):
     try:
         with st.spinner("🤔 Agent is thinking..."):
             # Prepare request
+            conversation_history = prepare_conversation_history(st.session_state.messages[:-1])  # Исключаем текущее сообщение
+            
             request_data = {
                 "message": prompt,
                 "agent_id": st.session_state.current_agent,
                 "temperature": st.session_state.temperature,
-                "max_tokens": st.session_state.max_tokens
+                "max_tokens": st.session_state.max_tokens,
+                "conversation_history": conversation_history
             }
             
             # Add custom model if selected
@@ -291,6 +356,8 @@ def render_single_response(prompt):
                     "agent_id": response.get("agent_id"),
                     "temperature": response.get("temperature"),
                     "tokens_used": response.get("usage", {}).get("total_tokens") if response.get("usage") else response.get("tokens_used"),
+                    "input_tokens": response.get("usage", {}).get("prompt_tokens"),
+                    "output_tokens": response.get("usage", {}).get("completion_tokens"),
                     "format_valid": response.get("format_valid"),
                     "timestamp": response.get("timestamp")
                 }
@@ -312,9 +379,11 @@ def render_single_response(prompt):
                 with col2:
                     if response.get("temperature") is not None:
                         st.write(f"**Temperature:** {response['temperature']}")
-                    tokens = response.get("usage", {}).get("total_tokens") if response.get("usage") else response.get("tokens_used")
-                    if tokens:
-                        st.write(f"**Tokens:** {tokens}")
+                    
+                    # Показываем детальную информацию о токенах
+                    token_info = format_token_info(response.get("usage"), response.get("tokens_used"))
+                    if token_info:
+                        st.write(token_info)
                 with col3:
                     if response.get("format_valid") is not None:
                         status = "✅ Valid" if response["format_valid"] else "❌ Invalid"
@@ -361,11 +430,14 @@ def render_temperature_comparison(prompt):
         
         try:
             # Prepare request
+            conversation_history = prepare_conversation_history(st.session_state.messages[:-1])  # Исключаем текущее сообщение
+            
             request_data = {
                 "message": prompt,
                 "agent_id": st.session_state.current_agent,
                 "temperature": temp,
-                "max_tokens": st.session_state.max_tokens
+                "max_tokens": st.session_state.max_tokens,
+                "conversation_history": conversation_history
             }
             
             # Add custom model if selected
@@ -426,9 +498,11 @@ def render_temperature_comparison(prompt):
                     with col1:
                         if response.get("model"):
                             st.write(f"**Model:** {response['model']}")
-                        tokens = response.get("usage", {}).get("total_tokens") if response.get("usage") else response.get("tokens_used")
-                        if tokens:
-                            st.write(f"**Tokens:** {tokens}")
+                        
+                        # Показываем детальную информацию о токенах
+                        token_info = format_token_info(response.get("usage"), response.get("tokens_used"))
+                        if token_info:
+                            st.write(token_info)
                     with col2:
                         if response.get("format_valid") is not None:
                             status = "✅ Valid" if response["format_valid"] else "❌ Invalid"

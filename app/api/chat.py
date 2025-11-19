@@ -32,7 +32,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         # Подготавливаем сообщения
         messages = agent_service.prepare_messages_for_agent(
             agent=agent,
-            user_message=request.message
+            user_message=request.message,
+            conversation_history=request.conversation_history
         )
         
         # Параметры для модели

@@ -40,6 +40,7 @@ class ChatRequest(BaseModel):
     system_prompt: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    conversation_history: Optional[List[ChatMessage]] = None
 
 
 class ChatResponse(BaseModel):

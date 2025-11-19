@@ -35,16 +35,11 @@ def render_sidebar():
                 index=0 if st.session_state.current_agent not in agent_options else list(agent_options.keys()).index(st.session_state.current_agent)
             )
             
-            # Automatically apply agent settings when switching
+            # Automatically apply agent settings when switching (disabled to preserve user settings)
             if st.session_state.current_agent != selected_agent:
                 st.session_state.current_agent = selected_agent
-                # Apply new agent settings
-                new_agent_info = next((agent for agent in agents if agent['id'] == selected_agent), None)
-                if new_agent_info:
-                    if 'temperature' in new_agent_info:
-                        st.session_state.temperature = new_agent_info['temperature']
-                    if 'max_tokens' in new_agent_info:
-                        st.session_state.max_tokens = new_agent_info['max_tokens']
+                # Note: Agent settings are not automatically applied to preserve user's custom settings
+                # Use "Apply Agent Settings" button below to apply agent defaults
             
             # Selected agent information
             current_agent_info = next((agent for agent in agents if agent['id'] == selected_agent), None)
@@ -63,7 +58,7 @@ def render_sidebar():
                     # Button to apply agent settings
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("📥 Apply Agent Settings", help="Apply temperature and tokens from agent settings"):
+                        if st.button("📥 Apply Agent Settings", help="Reset temperature and tokens to agent defaults"):
                             if 'temperature' in current_agent_info:
                                 st.session_state.temperature = current_agent_info['temperature']
                             if 'max_tokens' in current_agent_info:
@@ -119,12 +114,21 @@ def render_sidebar():
         try:
             models = st.session_state.api_client.get_models()
             if models:
-                model_options = ["Default"] + [model.get('id', str(model)) for model in models[:20]]  # Limit quantity
+                model_options = ["Default"] + [model.get('id', str(model)) for model in models]  # Limit quantity
+                
+                # Определяем текущий индекс на основе выбранной модели
+                current_index = 0
+                if st.session_state.selected_model:
+                    try:
+                        current_index = model_options.index(st.session_state.selected_model)
+                    except ValueError:
+                        current_index = 0  # Если модель не найдена в списке, сбрасываем на Default
+                
                 selected_model_idx = st.selectbox(
                     "Model:",
                     options=range(len(model_options)),
                     format_func=lambda x: model_options[x],
-                    index=0
+                    index=current_index
                 )
                 
                 if selected_model_idx == 0:

@@ -17,6 +17,13 @@ def render_models_page():
     """Available models page"""
     
     st.title("Available Models")
+    
+    # Показываем текущую выбранную модель
+    if hasattr(st.session_state, 'selected_model') and st.session_state.selected_model:
+        st.info(f"🎯 Текущая модель: **{st.session_state.selected_model}**")
+    else:
+        st.info("🎯 Текущая модель: **Default**")
+    
     st.markdown("---")
     
     # Загрузка моделей
@@ -96,8 +103,9 @@ def render_models_page():
                         
                         # Кнопка для использования модели
                         if st.button(f"🎯 Использовать модель", key=f"use_{model.get('id')}"):
-                            # Здесь можно добавить логику для переключения на эту модель
+                            st.session_state.selected_model = model.get('id')
                             st.success(f"✅ Выбрана модель: {model.get('name', model.get('id'))}")
+                            st.rerun()
                 
                 # Статистика моделей
                 if filtered_models:
