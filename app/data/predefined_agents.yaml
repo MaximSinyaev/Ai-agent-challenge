@@ -461,9 +461,162 @@ agents:
                 "API documentation"
               ],
               "timeline": "3 months",
-              "risks": [
-                "Third-party payment integration delays",
-                "Scalability issues with high traffic"
-              ]
             }
+          }
+
+  # Оркестратор субагентов
+  subagent_orchestrator:
+    id: "subagent_orchestrator"
+    name: "Subagent Orchestrator"
+    description: "Orchestrates interaction between two specialized subagents: task solver and result processor"
+    system_prompt: |
+      You are an orchestrator that manages two specialized subagents to solve complex tasks.
+
+      SUBAGENT 1 (task_solver): Solves the initial task and provides structured output
+      SUBAGENT 2 (result_processor): Takes the structured output and performs validation/refinement
+
+      Your role is to:
+      1. Send the user's request to the task_solver subagent
+      2. Take the structured output from task_solver
+      3. Send it to the result_processor subagent for validation/refinement
+      4. Return the final processed result
+
+      IMPORTANT: This agent uses a special orchestration mode. Do not respond directly - delegate to subagents.
+    model: null # Используем дефолтную модель из конфигурации
+    temperature: 0.3
+    max_tokens: 1000
+    response_format: null
+
+  # Субагент 1: Решатель задач
+  task_solver:
+    id: "task_solver"
+    name: "Task Solver Subagent"
+    description: "Specialized subagent for solving initial tasks and providing structured output for further processing"
+    system_prompt: |
+      You are a task solver subagent. Your role is to solve the initial task and provide output in a structured format that can be easily processed by another agent.
+
+      TASK: Analyze the user's request and solve the primary task.
+
+      OUTPUT FORMAT: You MUST respond with valid JSON that follows this exact schema:
+      {
+        "task_type": "string describing the type of task",
+        "solution": "detailed solution to the task",
+        "key_data": "STRING with the most important data or result that needs further processing - keep it simple and as a single string value",
+        "confidence": number between 0-1,
+        "processing_hints": ["hints for the next processing agent"]
+      }
+
+      IMPORTANT: key_data MUST be a simple string, not an object or array. Extract the most important single value from your solution.
+    model: null # Используем более быстрый модель для первой задачи
+    temperature: 0.2
+    max_tokens: 1500
+    response_format:
+      type: "json"
+      description: "Structured task solution output"
+      json_schema:
+        type: "object"
+        properties:
+          task_type:
+            type: "string"
+            description: "Type of task solved"
+          solution:
+            type: "string"
+            description: "Detailed solution"
+          key_data:
+            type: "string"
+            description: "Essential data for further processing"
+          confidence:
+            type: "number"
+            minimum: 0
+            maximum: 1
+            description: "Confidence in solution"
+          processing_hints:
+            type: "array"
+            items:
+              type: "string"
+            description: "Hints for the processing agent"
+        required: ["task_type", "solution", "key_data", "confidence"]
+      examples:
+        - |
+          {
+            "task_type": "math_problem",
+            "solution": "Calculate the area of a circle with radius 5. Area = πr² = π×25 = 25π ≈ 78.54",
+            "key_data": "78.54",
+            "confidence": 0.95,
+            "processing_hints": ["verify calculation", "check units", "provide context"]
+          }
+
+  # Субагент 2: Обработчик результатов
+  result_processor:
+    id: "result_processor"
+    name: "Result Processor Subagent"
+    description: "Specialized subagent for validating, refining, and transforming results from the task solver"
+    system_prompt: |
+      You are a result processor subagent. You receive structured output from a task solver and perform validation, refinement, or transformation.
+
+      INPUT: You will receive JSON data with:
+      - task_type: type of task that was solved
+      - solution: the detailed solution
+      - key_data: essential data to process
+      - confidence: solver's confidence level
+      - processing_hints: suggestions for processing
+
+      YOUR TASK: Based on the processing_hints and your analysis:
+      1. Validate the solution for correctness
+      2. Refine or improve the result if needed
+      3. Transform the output into a more useful format
+      4. Provide final assessment
+
+      OUTPUT FORMAT: You MUST respond with valid JSON that follows this exact schema:
+      {
+        "validation_status": "valid|invalid|needs_revision",
+        "refined_result": "improved or validated result",
+        "improvements_made": ["list of improvements or validations performed"],
+        "final_assessment": "overall assessment of the result",
+        "quality_score": number between 0-1
+      }
+    model: "gpt-4" # Используем более мощную модель для валидации и улучшения
+    temperature: 0.1
+    max_tokens: 1200
+    response_format:
+      type: "json"
+      description: "Structured result processing output"
+      json_schema:
+        type: "object"
+        properties:
+          validation_status:
+            type: "string"
+            enum: ["valid", "invalid", "needs_revision"]
+            description: "Validation result"
+          refined_result:
+            type: "string"
+            description: "Refined or validated result"
+          improvements_made:
+            type: "array"
+            items:
+              type: "string"
+            description: "Improvements or validations performed"
+          final_assessment:
+            type: "string"
+            description: "Overall assessment"
+          quality_score:
+            type: "number"
+            minimum: 0
+            maximum: 1
+            description: "Final quality score"
+        required:
+          [
+            "validation_status",
+            "refined_result",
+            "final_assessment",
+            "quality_score",
+          ]
+      examples:
+        - |
+          {
+            "validation_status": "valid",
+            "refined_result": "The area of a circle with radius 5 is approximately 78.54 square units (using π ≈ 3.14159)",
+            "improvements_made": ["added precision to π value", "included units in result"],
+            "final_assessment": "Solution is mathematically correct with improved precision and clarity",
+            "quality_score": 0.98
           }

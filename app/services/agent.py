@@ -1,11 +1,13 @@
 from typing import Dict, List, Optional
 from datetime import datetime
 import uuid
+import json
 from app.models.schemas import Agent, AgentConfig, ChatMessage, MessageRole, ResponseFormat, ResponseFormatType
 from app.services.agent_loader import agent_loader
 from app.database import get_db, AgentRepository
 from app.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.openrouter import openrouter_service
 
 
 class AgentService:
@@ -108,12 +110,118 @@ class AgentService:
         repository = AgentRepository(db)
         return await repository.delete_agent(agent_id)
     
+    def is_orchestrator_agent(self, agent: Agent) -> bool:
+        """Проверяет, является ли агент оркестратором субагентов"""
+        return agent.id == "subagent_orchestrator"
+    
+    async def orchestrate_subagents(self, db: AsyncSession, user_message: str, conversation_history: List[ChatMessage] = None) -> Dict:
+        """Оркестрирует взаимодействие между субагентами"""
+        try:
+            # Получаем субагентов
+            task_solver = await self.get_agent(db, "task_solver")
+            result_processor = await self.get_agent(db, "result_processor")
+            
+            if not task_solver or not result_processor:
+                raise Exception("Subagents not found")
+            
+            # Шаг 1: Отправляем задачу первому субагенту (task_solver)
+            task_messages = self.prepare_messages_for_agent(
+                agent=task_solver,
+                user_message=user_message,
+                conversation_history=conversation_history
+            )
+            
+            task_result = await openrouter_service.chat_completion(
+                messages=task_messages,
+                model=task_solver.model,
+                temperature=task_solver.temperature,
+                max_tokens=task_solver.max_tokens
+            )
+            
+            # Парсим JSON ответ от task_solver
+            try:
+                task_output = json.loads(task_result["message"])
+            except json.JSONDecodeError:
+                raise Exception("Task solver returned invalid JSON")
+            
+            # Шаг 2: Отправляем результат второму субагенту (result_processor)
+            # Создаем сообщение для result_processor с JSON данными от task_solver
+            processor_input = f"Process this task result:\n{json.dumps(task_output, indent=2)}"
+            
+            processor_messages = self.prepare_messages_for_agent(
+                agent=result_processor,
+                user_message=processor_input,
+                conversation_history=None  # Не передаем историю для процессора
+            )
+            
+            processor_result = await openrouter_service.chat_completion(
+                messages=processor_messages,
+                model=result_processor.model,
+                temperature=result_processor.temperature,
+                max_tokens=result_processor.max_tokens
+            )
+            
+            # Парсим JSON ответ от result_processor
+            try:
+                final_output = json.loads(processor_result["message"])
+            except json.JSONDecodeError:
+                raise Exception("Result processor returned invalid JSON")
+            
+            # Возвращаем комбинированный результат
+            return {
+                "message": json.dumps(final_output, indent=2),
+                "model": f"{task_solver.model} + {result_processor.model}",
+                "usage": {
+                    "task_solver": task_result.get("usage"),
+                    "result_processor": processor_result.get("usage")
+                },
+                "orchestration_steps": [
+                    {
+                        "step": 1,
+                        "agent": "task_solver",
+                        "output": task_output
+                    },
+                    {
+                        "step": 2,
+                        "agent": "result_processor", 
+                        "output": final_output
+                    }
+                ]
+            }
+            
+        except Exception as e:
+            raise Exception(f"Orchestration failed: {str(e)}")
+    
     def prepare_messages_for_agent(
         self, 
         agent: Agent, 
         user_message: str,
         conversation_history: List[ChatMessage] = None
     ) -> List[ChatMessage]:
+        """Подготавливает сообщения для отправки агенту"""
+        messages = []
+        
+        # Готовим системный промпт с учетом формата ответа
+        system_prompt = self._build_system_prompt(agent)
+        
+        # Добавляем системное сообщение
+        if system_prompt:
+            messages.append(ChatMessage(
+                role=MessageRole.SYSTEM,
+                content=system_prompt
+            ))
+        
+        # Добавляем историю разговора (если есть)
+        if conversation_history:
+            messages.extend(conversation_history)
+        
+        # Добавляем текущее сообщение пользователя
+        messages.append(ChatMessage(
+            role=MessageRole.USER,
+            content=user_message
+        ))
+        
+        return messages
         """Подготавливает сообщения для отправки агенту"""
         messages = []
         

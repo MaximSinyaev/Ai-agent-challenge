@@ -52,6 +52,7 @@ class ChatResponse(BaseModel):
     parsed_data: Optional[Any] = None
     format_valid: Optional[bool] = None
     response_format: Optional[ResponseFormat] = None
+    orchestration_steps: Optional[List[Dict[str, Any]]] = None
 
 
 class AgentConfig(BaseModel):

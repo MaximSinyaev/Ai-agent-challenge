@@ -212,6 +212,9 @@ def render_chat_interface():
                         response_format = message["raw_response"]["response_format"]
                     agent_id = message.get("metadata", {}).get("agent_id")
                     render_structured_response(message["parsed_data"], response_format, agent_id)
+                # Показываем оркестрацию субагентов если есть
+                elif "orchestration_steps" in message and message["orchestration_steps"]:
+                    render_structured_response({"orchestration_steps": message["orchestration_steps"], "message": message["content"]}, None, message.get("metadata", {}).get("agent_id"))
                 else:
                     st.markdown(message["content"])
                 
@@ -341,6 +344,9 @@ def render_single_response(prompt):
                 response_format = response.get("response_format")
                 agent_id = st.session_state.current_agent
                 render_structured_response(response["parsed_data"], response_format, agent_id)
+            # Показываем оркестрацию субагентов если есть
+            elif response.get("orchestration_steps"):
+                render_structured_response({"orchestration_steps": response["orchestration_steps"], "message": response_content, "usage": response.get("usage")}, None, st.session_state.current_agent)
             else:
                 message_placeholder.markdown(response_content)
             
@@ -351,6 +357,7 @@ def render_single_response(prompt):
                 "raw_response": response,  # Сохраняем полный ответ API
                 "parsed_data": response.get("parsed_data"),
                 "format_valid": response.get("format_valid"),
+                "orchestration_steps": response.get("orchestration_steps"),  # Сохраняем шаги оркестрации
                 "metadata": {
                     "model": response.get("model"),
                     "agent_id": response.get("agent_id"),

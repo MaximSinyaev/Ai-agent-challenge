@@ -29,41 +29,62 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
         
-        # Подготавливаем сообщения
-        messages = agent_service.prepare_messages_for_agent(
-            agent=agent,
-            user_message=request.message,
-            conversation_history=request.conversation_history
-        )
-        
-        # Параметры для модели
-        model = request.model or agent.model
-        temperature = request.temperature if request.temperature is not None else agent.temperature
-        max_tokens = request.max_tokens or agent.max_tokens
-        
-        # Отправляем запрос к OpenRouter
-        result = await openrouter_service.chat_completion(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-        
-        # Парсим ответ согласно формату агента
-        parsed_data, format_valid = response_format_service.parse_response(
-            result["message"], 
-            agent.response_format
-        )
-        
-        return ChatResponse(
-            message=result["message"],
-            model=result["model"],
-            agent_id=agent_id,
-            usage=result.get("usage"),
-            parsed_data=parsed_data if agent.response_format else None,
-            format_valid=format_valid if agent.response_format else None,
-            response_format=agent.response_format
-        )
+        # Проверяем, является ли агент оркестратором субагентов
+        if agent_service.is_orchestrator_agent(agent):
+            # Используем оркестрацию субагентов
+            result = await agent_service.orchestrate_subagents(
+                db=db,
+                user_message=request.message,
+                conversation_history=request.conversation_history
+            )
+            
+            return ChatResponse(
+                message=result["message"],
+                model=result["model"],
+                agent_id=agent_id,
+                usage=result.get("usage"),
+                parsed_data=None,  # Оркестратор возвращает уже обработанные данные
+                format_valid=True,
+                response_format=None,
+                orchestration_steps=result.get("orchestration_steps")
+            )
+        else:
+            # Стандартная обработка для обычных агентов
+            # Подготавливаем сообщения
+            messages = agent_service.prepare_messages_for_agent(
+                agent=agent,
+                user_message=request.message,
+                conversation_history=request.conversation_history
+            )
+            
+            # Параметры для модели
+            model = request.model or agent.model
+            temperature = request.temperature if request.temperature is not None else agent.temperature
+            max_tokens = request.max_tokens or agent.max_tokens
+            
+            # Отправляем запрос к OpenRouter
+            result = await openrouter_service.chat_completion(
+                messages=messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            # Парсим ответ согласно формату агента
+            parsed_data, format_valid = response_format_service.parse_response(
+                result["message"], 
+                agent.response_format
+            )
+            
+            return ChatResponse(
+                message=result["message"],
+                model=result["model"],
+                agent_id=agent_id,
+                usage=result.get("usage"),
+                parsed_data=parsed_data if agent.response_format else None,
+                format_valid=format_valid if agent.response_format else None,
+                response_format=agent.response_format
+            )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

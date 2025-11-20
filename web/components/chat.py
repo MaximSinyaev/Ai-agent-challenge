@@ -3,33 +3,6 @@ from typing import List, Dict, Any
 import time
 import json
 
-# def render_raw_response_expander(raw_content: str, metadata: Dict[str, Any] = None):
-#     """Universal function to display raw model response in an expander"""
-#     with st.expander("🔍 Raw Model Response", expanded=False):
-#         st.markdown("**Original Response:**")
-#         st.code(raw_content, language="text")
-        
-#         if metadata:
-#             st.markdown("**Response Metadata:**")
-#             col1, col2, col3 = st.columns(3)
-            
-#             with col1:
-#                 if "model" in metadata:
-#                     st.metric("Model", metadata["model"])
-            
-#             with col2:
-#                 if "usage" in metadata and metadata["usage"]:
-#                     total_tokens = metadata["usage"].get("total_tokens", 0)
-#                     st.metric("Tokens Used", total_tokens)
-            
-#             with col3:
-#                 if "finish_reason" in metadata:
-#                     st.metric("Finish Reason", metadata["finish_reason"])
-            
-#             # Additional metadata in JSON format
-#             if len(metadata) > 3:
-#                 st.markdown("**Full Metadata:**")
-#                 st.json(metadata)
 
 def render_structured_response(data: Any, response_format: dict = None, metadata: Dict[str, Any] = None):
     """Rendering structured response depending on its type"""
@@ -43,8 +16,11 @@ def render_structured_response(data: Any, response_format: dict = None, metadata
         return
     
     if isinstance(data, dict):
+        # Special handling for orchestration steps
+        if "orchestration_steps" in data:
+            render_orchestration_response(data, metadata)
         # If this is JSON object, show it nicely for special agents
-        if "problem_analysis" in data and "solution_steps" in data:
+        elif "problem_analysis" in data and "solution_steps" in data:
             render_math_response(data, metadata)
         elif "task_understanding" in data and "code" in data:
             render_code_response(data, metadata)
@@ -321,3 +297,127 @@ def render_technical_spec_response(data: dict, raw_content: str = None, metadata
                 st.warning(f"• {risk}")
     else:
         st.error("Unknown response status")
+
+
+def render_orchestration_response(data: dict, metadata: Dict[str, Any] = None):
+    """Rendering subagent orchestration response"""
+    st.markdown("## 🔄 Subagent Orchestration Results")
+
+    # Show orchestration steps
+    if "orchestration_steps" in data:
+        st.markdown("### 📋 Orchestration Steps")
+
+        for step in data["orchestration_steps"]:
+            step_num = step.get("step", "?")
+            agent_name = step.get("agent", "Unknown")
+
+            with st.expander(f"Step {step_num}: {agent_name}", expanded=True):
+                step_output = step.get("output", {})
+
+                if agent_name == "task_solver":
+                    st.markdown("#### 🎯 Task Solver Output")
+                    if "task_type" in step_output:
+                        st.write(f"**Task Type:** {step_output['task_type']}")
+                    if "solution" in step_output:
+                        st.write(f"**Solution:** {step_output['solution']}")
+                    if "key_data" in step_output:
+                        st.info(f"**Key Data:** {step_output['key_data']}")
+                    if "confidence" in step_output:
+                        st.write(f"**Confidence:** {step_output['confidence']:.2f}")
+                    if "processing_hints" in step_output:
+                        st.write("**Processing Hints:**")
+                        for hint in step_output["processing_hints"]:
+                            st.write(f"• {hint}")
+
+                elif agent_name == "result_processor":
+                    st.markdown("#### ✅ Result Processor Output")
+                    if "validation_status" in step_output:
+                        status = step_output["validation_status"]
+                        status_icon = {
+                            "valid": "✅",
+                            "invalid": "❌",
+                            "needs_revision": "⚠️"
+                        }.get(status, "❓")
+                        st.write(f"**Validation Status:** {status_icon} {status}")
+
+                    if "refined_result" in step_output:
+                        st.success(f"**Refined Result:** {step_output['refined_result']}")
+
+                    if "improvements_made" in step_output:
+                        st.write("**Improvements Made:**")
+                        for improvement in step_output["improvements_made"]:
+                            st.write(f"• {improvement}")
+
+                    if "final_assessment" in step_output:
+                        st.info(f"**Final Assessment:** {step_output['final_assessment']}")
+
+                    if "quality_score" in step_output:
+                        quality = step_output["quality_score"]
+                        st.progress(quality)
+                        st.write(f"**Quality Score:** {quality:.2f}")
+
+    # Show final result
+    if "message" in data:
+        st.markdown("### 🎉 Final Result")
+        try:
+            # Try to parse the message as JSON for better display
+            final_data = json.loads(data["message"])
+            if isinstance(final_data, dict):
+                # Render based on the structure of the final result
+                if "validation_status" in final_data and "refined_result" in final_data:
+                    # This is the result processor output
+                    render_result_processor_final(final_data)
+                else:
+                    st.json(final_data)
+            else:
+                st.write(data["message"])
+        except json.JSONDecodeError:
+            st.write(data["message"])
+
+    # Show usage information
+    if "usage" in data:
+        st.markdown("### 📊 Usage Statistics")
+        usage = data["usage"]
+
+        if "task_solver" in usage:
+            with st.expander("Task Solver Usage", expanded=False):
+                ts_usage = usage["task_solver"]
+                if ts_usage:
+                    st.write(f"**Tokens:** {ts_usage.get('total_tokens', 'N/A')}")
+
+        if "result_processor" in usage:
+            with st.expander("Result Processor Usage", expanded=False):
+                rp_usage = usage["result_processor"]
+                if rp_usage:
+                    st.write(f"**Tokens:** {rp_usage.get('total_tokens', 'N/A')}")
+
+
+def render_result_processor_final(data: dict):
+    """Render the final result from result processor"""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        status = data.get("validation_status", "unknown")
+        status_icon = {
+            "valid": "✅",
+            "invalid": "❌",
+            "needs_revision": "⚠️"
+        }.get(status, "❓")
+        st.metric("Validation Status", f"{status_icon} {status}")
+
+    with col2:
+        quality = data.get("quality_score", 0)
+        st.metric("Quality Score", f"{quality:.2f}")
+
+    if "refined_result" in data:
+        st.markdown("#### ✨ Refined Result")
+        st.success(data["refined_result"])
+
+    if "final_assessment" in data:
+        st.markdown("#### 📋 Final Assessment")
+        st.info(data["final_assessment"])
+
+    if "improvements_made" in data and data["improvements_made"]:
+        st.markdown("#### 🔧 Improvements Made")
+        for improvement in data["improvements_made"]:
+            st.write(f"• {improvement}")
